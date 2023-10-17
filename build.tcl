@@ -20,8 +20,8 @@ read_verilog -sv [ glob ./hdl/*.sv ]
 # uncomment line below if verilog (.v) files present:
 read_verilog  [ glob ./hdl/*.v ]
 read_xdc ./xdc/top_level.xdc
-#Using this in Lab 5 now!
-read_mem [ glob ./data/*.mem ]
+#we'll use this later:
+# read_mem [ glob ./data/*.mem ]
 
 # set the part number so Vivado knows how to build (each FPGA is different)
 set_part $partNum
@@ -56,6 +56,6 @@ report_timing -file $outputDir/post_route_timing.rpt
 report_power -file $outputDir/post_route_power.rpt
 report_drc -file $outputDir/post_imp_drc.rpt
 #set_property SEVERITY {Warning} [get_drc_checks NSTD-1]
-#write_verilog -force $outputDir/cpu_impl_netlist.v -mode timesim -sdf_anno true
+write_verilog -force $outputDir/cpu_impl_netlist.v -mode timesim -sdf_anno true
 write_bitstream -force $outputDir/final.bit
 
