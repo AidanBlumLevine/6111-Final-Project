@@ -42,38 +42,38 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 300;
-        y_in = 300;
+        x_in = 150;
+        y_in = 140;
         #10  //wait a little bit of time at beginning
         rst_in = 1; //reset system
         #10; //hold high for a few clock cycles
         rst_in=0;
         #10;
-        a = dec_to_16_8(3);
-        b = dec_to_16_8(-1);
+        a = dec_to_24_8(3);
+        b = dec_to_24_8(-1);
         $display("a = %h", a);
         $display("b = %h", b);
-        a = mult_16_8(a, b);
+        a = mult_24_8(a, b);
         $display("prod = %h", a);
-        a = dec_to_16_8(3);
-        b = dec_to_16_8(4);
-        c = dec_to_16_8(0);
-        // a = mult_16_8(a, a);
-        // b = mult_16_8(b, b);
-        $display("a^2 = %h", mult_16_8(a, a));
-        $display("b^2 = %h", mult_16_8(b, b));
-        $display("c^2 = %h", mult_16_8(c, c));
+        a = dec_to_24_8(3);
+        b = dec_to_24_8(4);
+        c = dec_to_24_8(0);
+        // a = mult_24_8(a, a);
+        // b = mult_24_8(b, b);
+        $display("a^2 = %h", mult_24_8(a, a));
+        $display("b^2 = %h", mult_24_8(b, b));
+        $display("c^2 = %h", mult_24_8(c, c));
         $display("magsq 3,4,0 = %h", square_mag(a,b,c));
         
-        a = dec_to_16_8(256);
-        b = dec_to_16_8(-16);
+        a = dec_to_24_8(256);
+        b = dec_to_24_8(-16);
         $display("a = %h", a);
         $display("b = %h", b);
         a = div_shift_estimate(a, b);
         $display("a / b= %h", a);
         
-        a = dec_to_16_8(-256);
-        b = dec_to_16_8(16);
+        a = dec_to_24_8(-256);
+        b = dec_to_24_8(16);
         $display("a = %h", a);
         $display("b = %h", b);
         a = div_shift_estimate(a, b);

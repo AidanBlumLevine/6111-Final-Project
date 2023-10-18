@@ -77,30 +77,30 @@ module raymarcher
   logic signed [31:0] dir_z;
 
   always_ff @(posedge clk_pixel_in) begin
-    // if(state == PIXEL_DONE) begin
-    //   $display("PIXEL_DONE");
-    // end else if(state == INITIALIZING) begin
-    //   $display("INITIALIZING");
-    // end else if(state == AWAITING_SDF) begin
-    //   $display("AWAITING_SDF");
-    // end else if(state == NORMALIZING_RAY) begin
-    //   $display("NORMALIZING_RAY");
-    // end else if(state == MARCHING) begin
-    //   $display("MARCHING");
-    // end
+    if(state == PIXEL_DONE) begin
+      $display("PIXEL_DONE");
+    end else if(state == INITIALIZING) begin
+      $display("INITIALIZING");
+    end else if(state == AWAITING_SDF) begin
+      $display("AWAITING_SDF");
+    end else if(state == NORMALIZING_RAY) begin
+      $display("NORMALIZING_RAY");
+    end else if(state == MARCHING) begin
+      $display("MARCHING");
+    end
 
     if(rst_in) begin
       state <= PIXEL_DONE;
     end else begin
       if(state == PIXEL_DONE) begin
         ray_steps <= 0;
-        //=!$display("color out %d %d %d", red_out, green_out, blue_out);
+        $display("color out %d %d %d", red_out, green_out, blue_out);
         
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
-        ray_gen_in_x <= dec_to_16_8(curr_x - WIDTH/2'd2);
-        ray_gen_in_y <= dec_to_16_8(curr_y - HEIGHT/2'd2);
-        ray_gen_in_z <= dec_to_16_8(WIDTH/3'd4+HEIGHT/3'd4);
+        ray_gen_in_x <= dec_to_24_8(curr_x - WIDTH/2'd2);
+        ray_gen_in_y <= dec_to_24_8(curr_y - HEIGHT/2'd2);
+        ray_gen_in_z <= dec_to_24_8(WIDTH/3'd4+HEIGHT/3'd4);
         $display("ray_gen_in %h %h %h", ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
         state <= NORMALIZING_RAY;
       end else if(state == NORMALIZING_RAY) begin
@@ -121,10 +121,10 @@ module raymarcher
         sdf_start <= 0;
 
         if (sdf_done) begin
-          //=!$display("sdf_out %b", sdf_out);
+          $display("sdf_out %d d", sdf_out >> 8);
 
           if(sdf_out[31] || sdf_out < EPSILON) begin
-            //=!$display("breaking from surface contact at distance %h", sdf_out);
+            $display("breaking from surface contact at distance %h h", sdf_out);
             red_out <= 8'h00;
             green_out <= 8'h00;
             blue_out <= 8'h00;
@@ -136,20 +136,20 @@ module raymarcher
           end
         end
       end else if (state == MARCHING) begin
-        //=!$display("marching from %h %h %h", ray_x, ray_y, ray_z);
-        ray_x <= ray_x + mult_16_8(dir_x, sdf_out);
-        ray_y <= ray_y + mult_16_8(dir_y, sdf_out);
-        ray_z <= ray_z + mult_16_8(dir_z, sdf_out);
-        //=!$display("to %h %h %h", ray_x + mult_16_8(dir_x, sdf_out), ray_y + mult_16_8(dir_y, sdf_out), ray_z + mult_16_8(dir_z, sdf_out));
+        $display("marching from %h %h %h", ray_x, ray_y, ray_z);
+        ray_x <= ray_x + mult_24_8(dir_x, sdf_out);
+        ray_y <= ray_y + mult_24_8(dir_y, sdf_out);
+        ray_z <= ray_z + mult_24_8(dir_z, sdf_out);
+        $display("to %h %h %h", ray_x + mult_24_8(dir_x, sdf_out), ray_y + mult_24_8(dir_y, sdf_out), ray_z + mult_24_8(dir_z, sdf_out));
         if(ray_steps > MAX_STEPS) begin
-          //=!$display("breaking from max steps");
+          $display("breaking from max steps");
           red_out <= 8'hFF;
           green_out <= 8'h00;
           blue_out <= 8'hFF;
 
           state <= PIXEL_DONE;
         end else if(square_mag(ray_x, ray_y, ray_z) > MAX_DIST_SQUARE) begin
-          //=!$display("breaking from max dist");
+          $display("breaking from max dist");
           red_out <= 8'hFF;
           green_out <= 8'hFF;
           blue_out <= 8'hFF;
@@ -179,7 +179,7 @@ module sdf (
     if(rst_in) begin
     end else begin
       if(sdf_start) begin
-        sdf_out <= abs_16_8(x) + abs_16_8(y) + abs_16_8(z - 32'h00096_00) - 32'h00001_00;
+        sdf_out <= abs_24_8(x) + abs_24_8(y) + abs_24_8(z - 32'h00096_00) - 32'h00001_00;
         sdf_done <= 1;
       end else begin
         sdf_done <= 0;
@@ -266,7 +266,10 @@ module ray_gen (
       if(ray_gen_start && !processing) begin
         processing <= 1;
         sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
-        $display("sqrt_in %h", square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z));
+        // $display("xin %h", ray_gen_in_x);
+        // $display("yin %h", ray_gen_in_y);
+        // $display("zin %h", ray_gen_in_z);
+        // $display("sqrt_in %h", square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z) >> 8);
         sqrt_start <= 1;
         ray_gen_done <= 0;
       end else begin
@@ -274,7 +277,6 @@ module ray_gen (
 
         if(sqrt_done) begin
           norm <= sqrt_out;
-          $display("norm %h", norm);
           div_start <= 1;
           div_x_set <= 0;
           div_y_set <= 0;

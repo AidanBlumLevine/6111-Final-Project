@@ -188,27 +188,27 @@ function logic signed [31:0] square_mag;
   logic signed [31:0] j;
   logic signed [31:0] k;
   begin
-    i = mult_16_8(x,x);
-    j = mult_16_8(y,y);
-    k = mult_16_8(z,z);
+    i = mult_24_8(x,x);
+    j = mult_24_8(y,y);
+    k = mult_24_8(z,z);
     square_mag = i + j + k;
   end
 endfunction
 
-function logic signed [31:0] mult_16_8;
+function logic signed [31:0] mult_24_8;
   input logic signed [31:0] a;
   input logic signed [31:0] b;
   logic signed [63:0] intermediate;
   begin
     intermediate = a * b;
-    mult_16_8 = {intermediate[63], intermediate[38:8]};
+    mult_24_8 = {intermediate[63], intermediate[38:8]};
   end
 endfunction
 
-function logic signed [31:0] dec_to_16_8;
-  input logic [15:0] a;
+function logic signed [31:0] dec_to_24_8;
+  input logic [23:0] a;
   begin
-    dec_to_16_8 = {a, 8'h00};
+    dec_to_24_8 = {a, 8'h00};
   end
 endfunction
 
@@ -246,10 +246,10 @@ function logic signed [31:0] div_shift_estimate;
   end
 endfunction
 
-function logic signed [31:0] abs_16_8;
+function logic signed [31:0] abs_24_8;
   input logic signed [31:0] a;
   begin
-    abs_16_8 = a[31] ? ~a + 1 : a;
+    abs_24_8 = a[31] ? ~a + 1 : a;
   end
 endfunction
 
