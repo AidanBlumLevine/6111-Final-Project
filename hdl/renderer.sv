@@ -19,7 +19,7 @@ module renderer
   logic [$clog2(WIDTH)-1:0] curr_x;
 
   logic [5:0] counter;
-  logic pixel_done;
+  raymarcher_state ray_state;
   logic [7:0] pixel_red;
   logic [7:0] pixel_green;
   logic [7:0] pixel_blue;
@@ -29,7 +29,7 @@ module renderer
       curr_x <= 0;
       curr_y <= 0;
     end else begin
-      if(pixel_done) begin
+      if(ray_state == PIXEL_DONE) begin
         curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
         curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       end
@@ -44,7 +44,7 @@ module renderer
     .rst_in(rst_in),
     .curr_x(curr_x),
     .curr_y(curr_y),
-    .pixel_done(pixel_done),
+    .state(ray_state),
     .red_out(pixel_red),
     .green_out(pixel_green),
     .blue_out(pixel_blue)

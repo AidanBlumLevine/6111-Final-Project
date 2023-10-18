@@ -10,7 +10,6 @@ module tb;
     logic [7:0] green_out;
     logic [7:0] blue_out;
     logic pixel_done;
-    logic [31:0] ray_dist_squared;
     logic [31:0] ray_steps;
 
     logic signed [23:0] a;
@@ -28,9 +27,7 @@ module tb;
       .red_out(red_out),
       .green_out(green_out),
       .blue_out(blue_out),
-      .pixel_done(pixel_done),
-      .ray_dist_squared(ray_dist_squared),
-      .ray_steps(ray_steps)
+      .pixel_done(pixel_done)
     );
 
     always begin
@@ -67,13 +64,28 @@ module tb;
         $display("b^2 = %h", mult_16_8(b, b));
         $display("c^2 = %h", mult_16_8(c, c));
         $display("magsq 3,4,0 = %h", square_mag(a,b,c));
+        
+        a = dec_to_16_8(256);
+        b = dec_to_16_8(-16);
+        $display("a = %h", a);
+        $display("b = %h", b);
+        a = div_shift_estimate(a, b);
+        $display("a / b= %h", a);
+        
+        a = dec_to_16_8(-256);
+        b = dec_to_16_8(16);
+        $display("a = %h", a);
+        $display("b = %h", b);
+        a = div_shift_estimate(a, b);
+        $display("a / b= %h", a);
         #10;
 
+
+
         for (int i = 0; i<150; i= i+1)begin
-          $display("i = %d", i);
-          $display("ray steps = %d", ray_steps);
-          $display("ray dist squared = %h", ray_dist_squared);
-          $display("pixel_done = %d", pixel_done);
+          // $display("i = %d", i);
+          // $display("ray steps = %d", ray_steps);
+          // $display("pixel_done = %d", pixel_done);
           #10;
         end
         $display("Finishing Sim"); //print nice message
