@@ -1,5 +1,6 @@
 /remote
-.bundle
+*.bundle
 *.rpt
-/sim
+*.out
 *.log
+*.vcd

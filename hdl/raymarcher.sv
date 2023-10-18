@@ -45,9 +45,12 @@ module raymarcher
         ray_dist_squared <= 0;
       end else if(ray_steps == 0) begin
         // new ray has just been initialized
-        dir_x <= dec_to_16_8(curr_x - WIDTH/2'd2);
-        dir_y <= dec_to_16_8(curr_y - HEIGHT/2'd2);
-        dir_z <= dec_to_16_8(WIDTH/3'd4+HEIGHT/3'd4);
+        // dir_x <= dec_to_16_8(curr_x - WIDTH/2'd2);
+        // dir_y <= dec_to_16_8(curr_y - HEIGHT/2'd2);
+        // dir_z <= dec_to_16_8(WIDTH/3'd4+HEIGHT/3'd4);
+        dir_x <= dec_to_16_8(1);
+        dir_y <= dec_to_16_8(1);
+        dir_z <= dec_to_16_8(1);
         ray_x <= 0;
         ray_y <= 0;
         ray_z <= 0;
@@ -64,8 +67,8 @@ module raymarcher
         ray_x <= ray_x + dir_x;
         ray_y <= ray_y + dir_y;
         ray_z <= ray_z + dir_z;
-        // $display("dir_x: %h, dir_y: %h, dir_z: %h", dir_x, dir_y, dir_z);
-        // $display("ray_x: %h, ray_y: %h, ray_z: %h", ray_x, ray_y, ray_z);
+        $display("dir_x: %h, dir_y: %h, dir_z: %h", dir_x, dir_y, dir_z);
+        $display("ray_x: %h, ray_y: %h, ray_z: %h", ray_x, ray_y, ray_z);
 
         ray_dist_squared <= square_mag(ray_x, ray_y, ray_z);
         ray_steps <= ray_steps + 1;
@@ -80,7 +83,7 @@ module raymarcher
   end
 endmodule
 
-function logic [23:0] square_mag;
+function logic signed [23:0] square_mag;
   input logic signed [23:0] x;
   input logic signed [23:0] y;
   input logic signed [23:0] z;
@@ -89,16 +92,18 @@ function logic [23:0] square_mag;
   end
 endfunction
 
-function logic [23:0] mult_16_8;
+function logic signed [23:0] mult_16_8;
   input logic signed [23:0] a;
   input logic signed [23:0] b;
+  logic signed [47:0] intermediate;
   begin
-    mult_16_8 = (a * b) >> 8;
+    intermediate = a * b;
+    mult_16_8 = {intermediate[47], intermediate[30:8]};
   end
 endfunction
 
-function logic [23:0] dec_to_16_8;
-  input logic [31:0] a;
+function logic signed [23:0] dec_to_16_8;
+  input logic [15:0] a;
   begin
     dec_to_16_8 = {a, 8'h00};
   end
