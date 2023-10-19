@@ -7,7 +7,7 @@ module renderer
   parameter HEIGHT = 720
 )
 (
-  input wire clk_pixel_in,
+  input wire clk_in,
   input wire rst_in,
   input wire [10:0] hcount_in,
   input wire [9:0] vcount_in,
@@ -26,7 +26,7 @@ module renderer
   logic [7:0] pixel_green;
   logic [7:0] pixel_blue;
 
-  always_ff @(posedge clk_pixel_in) begin
+  always_ff @(posedge clk_in) begin
     if(rst_in) begin
       curr_x <= 0;
       curr_y <= 0;
@@ -47,7 +47,7 @@ module renderer
     .WIDTH(WIDTH),
     .HEIGHT(HEIGHT)
   ) rm (
-    .clk_pixel_in(clk_pixel_in),
+    .clk_in(clk_in),
     .rst_in(rst_in),
     .curr_x(curr_x),
     .curr_y(curr_y),
@@ -74,7 +74,7 @@ module renderer
     .RAM_DEPTH(WIDTH * HEIGHT)
   ) frame_buffer (
     .addra(frame_addr),
-    .clka(clk_pixel_in),
+    .clka(clk_in),
     .wea(pixel_done),
     .dina({pixel_red, pixel_green, pixel_blue}),
     .ena(1'b1),
@@ -83,7 +83,7 @@ module renderer
     .douta(), 
     .addrb(img_addr),
     .dinb(16'b0),
-    .clkb(clk_pixel_in),
+    .clkb(clk_in),
     .web(1'b0),
     .enb(in_frame),
     .rstb(rst_in),

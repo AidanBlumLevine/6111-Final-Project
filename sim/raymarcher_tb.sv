@@ -22,7 +22,7 @@ module tb;
       .WIDTH(300),
       .HEIGHT(300)
     ) raym (
-      .clk_pixel_in(clk_in),
+      .clk_in(clk_in),
       .rst_in(rst_in),
       .curr_x(x_in),
       .curr_y(y_in),
@@ -46,8 +46,8 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 0;
-        y_in = 0;
+        x_in = 180;
+        y_in = 200;
         #10  //wait a little bit of time at beginning
         rst_in = 1; //reset system
         #10; //hold high for a few clock cycles
