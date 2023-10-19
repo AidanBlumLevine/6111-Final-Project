@@ -250,25 +250,64 @@ module sdf (
   output logic [7:0] sdf_green_out,
   output logic [7:0] sdf_blue_out
 );
+  typedef enum {IDLE=0, PROCESSING=1} sdf_state;
+  sdf_state state;
+
+  logic signed [31:0] sphere_1_dist_squared;
+  logic signed [31:0] sphere_2_dist_squared;
+  logic sphere_1_sqrt_done;
+  logic sphere_2_sqrt_done;
   logic signed [31:0] sphere_1_dist;
   logic signed [31:0] sphere_2_dist;
 
+  logic sqrt_start;
+
+  sqrt sqrt_inst (
+    .clk(clk_in),
+    .start(sqrt_start),
+    .rad(sphere_1_dist_squared),
+    .root(sphere_1_dist),
+    .valid(sphere_1_sqrt_done)
+  );
+
+  sqrt sqrt_inst2 (
+    .clk(clk_in),
+    .start(sqrt_start),
+    .rad(sphere_2_dist_squared),
+    .root(sphere_2_dist),
+    .valid(sphere_2_sqrt_done)
+  );
+
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
+      state <= IDLE;
+      sqrt_start <= 0;
+      sdf_done <= 0;
     end else begin
-      if(sdf_start) begin
-        sdf_out <= signed_minimum( GOTTA SQUARE ROOT OR IT FREAKS OUT AND OVERFLOW
-          (square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00) - 32'h00090_00), 
-          (square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00) - 32'h00090_00)
-        );
-        $display("p1 dist^2 %d", square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00) >> 8);
-        $display("p2 dist^2 %d", square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00) >> 8);
-        sdf_red_out <= clamp_color((square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00)) >> 7);
-        sdf_green_out <= 8'h00;
-        sdf_blue_out <= clamp_color((square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00)) >> 7);
-        sdf_done <= 1;
-      end else begin
+      if (state == IDLE) begin
         sdf_done <= 0;
+        
+        if(sdf_start) begin
+          sqrt_start <= 1;
+          sphere_1_dist_squared <= square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00);
+          sphere_2_dist_squared <= square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00);
+
+          state <= PROCESSING;
+        end
+      end else if(state == PROCESSING) begin
+        sqrt_start <= 0;
+        if(sphere_1_sqrt_done && sphere_2_sqrt_done) begin
+          sdf_out <= signed_minimum(
+            (sphere_1_dist - 32'h00040_00), 
+            (sphere_2_dist - 32'h00040_00)
+          );
+          sdf_red_out <= clamp_color(sphere_1_dist >> 7);
+          sdf_green_out <= clamp_color(sphere_2_dist >> 7);
+          sdf_blue_out <= 8'h00;
+          sdf_done <= 1;
+
+          state <= IDLE;
+        end
       end
     end
   end
