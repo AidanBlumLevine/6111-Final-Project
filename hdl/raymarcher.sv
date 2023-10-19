@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 `default_nettype none
 
-parameter BITS = 64;
-parameter FIXED = 32;
+parameter BITS = 32;
+parameter FIXED = 16;
 
 function logic signed [BITS-1:0] mult;
   input logic signed [BITS-1:0] a;
@@ -314,14 +314,17 @@ module sdf (
           // else below because the done signals are still 1 the frame after it is started? Idk why, but this fixed it.
         end else if(sphere_1_sqrt_done && sphere_2_sqrt_done) begin
           $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
-          $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
+          // $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
           // $display("sphere 1 dist from sphere %d", $signed(sphere_1_dist - to_fixed(64) >> FIXED));
           // $display("sphere 2 dist from sphere %d", $signed(sphere_2_dist - to_fixed(64) >> FIXED));
           // $display("signed min %d", $signed(signed_minimum(
           //   (sphere_1_dist - to_fixed(64)), 
           //   (sphere_2_dist - to_fixed(64))
           // ) >> FIXED));
-          sdf_out <= sphere_1_dist - to_fixed(64);
+          sdf_out <= signed_minimum(
+            (sphere_1_dist - to_fixed(64)), 
+            (sphere_2_dist - to_fixed(64))
+          );
           sdf_red_out <= clamp_color(sphere_1_dist >> FIXED << 1);
           sdf_green_out <= clamp_color(sphere_2_dist >> FIXED << 1);
           sdf_blue_out <= 8'h00;
@@ -334,6 +337,46 @@ module sdf (
     end
   end
 endmodule
+
+// module sdfquick (
+//   input wire clk_in,
+//   input wire rst_in,
+//   input wire sdf_start,
+//   input wire signed [BITS-1:0] x,
+//   input wire signed [BITS-1:0] y,
+//   input wire signed [BITS-1:0] z,
+//   output logic sdf_done,
+//   output logic signed [BITS-1:0] sdf_out,
+//   output logic [7:0] sdf_red_out,
+//   output logic [7:0] sdf_green_out,
+//   output logic [7:0] sdf_blue_out
+// );
+//   typedef enum {IDLE=0, PROCESSING=1, DONE=2} sdf_state;
+//   sdf_state state;
+
+//   always_comb begin
+//     sdf_done = state == DONE;
+//   end
+
+//   always_ff @(posedge clk_in) begin
+//     if(rst_in) begin
+//       state <= IDLE;
+//     end else begin
+//       if (state == IDLE) begin
+//         if(sdf_start) begin
+//           //cube sdf
+//           sdf_out <= ;
+//           sdf_red_out <= clamp_color(sdf_out >> FIXED << 1);
+//           sdf_green_out <= clamp_color(sdf_out >> FIXED << 1);
+//           sdf_blue_out <= 8'h00;
+//           state <= DONE;
+//         end
+//       end else if (state == DONE) begin
+//         state <= IDLE;
+//       end
+//     end
+//   end
+// endmodule
 
 module ray_gen (
   input wire clk_in,
