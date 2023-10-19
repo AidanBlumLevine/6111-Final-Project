@@ -1,14 +1,79 @@
 `timescale 1ns / 1ps
 `default_nettype none
 
+function logic signed [31:0] mult_24_8;
+  input logic signed [31:0] a;
+  input logic signed [31:0] b;
+  logic signed [63:0] intermediate;
+  begin
+    intermediate = a * b;
+    mult_24_8 = {intermediate[63], intermediate[38:8]};
+  end
+endfunction
+
+function logic signed [31:0] square_mag;
+  input logic signed [31:0] x;
+  input logic signed [31:0] y;
+  input logic signed [31:0] z;
+  logic signed [31:0] i;
+  logic signed [31:0] j;
+  logic signed [31:0] k;
+  begin
+    i = mult_24_8(x,x);
+    j = mult_24_8(y,y);
+    k = mult_24_8(z,z);
+    square_mag = i + j + k;
+  end
+endfunction
+
+function logic signed [31:0] dec_to_24_8;
+  input logic [23:0] a;
+  begin
+    dec_to_24_8 = {a, 8'h00};
+  end
+endfunction
+
+function logic signed [31:0] abs_24_8;
+  input logic signed [31:0] a;
+  begin
+    abs_24_8 = a[31] ? ~a + 1 : a;
+  end
+endfunction
+
+function logic signed [31:0] signed_minimum;
+  input logic signed [31:0] a;
+  input logic signed [31:0] b;
+  begin
+    if(a[31] && !b[31])
+      signed_minimum = b;
+    else if(!a[31] && b[31])
+      signed_minimum = a;
+    else if(a[31] && b[31])
+      signed_minimum = a > b ? a : b;
+    else
+      signed_minimum = a < b ? a : b;
+  end
+endfunction
+
+function logic [7:0] clamp_color;
+  input logic [31:0] a;
+  begin
+    if(a > 8'hFF)
+      clamp_color = 8'hFF;
+    else if(a < 8'h00)
+      clamp_color = 8'h00;
+    else
+      clamp_color = a;
+  end
+endfunction
 
 module raymarcher
 #(
   parameter WIDTH = 1280,
   parameter HEIGHT = 720,
   parameter MAX_STEPS = 100,
-  parameter signed [31:0] MAX_DIST_SQUARE = 32'h00080_00,
-  parameter signed [31:0] EPSILON = 32'h000000_10
+  parameter signed [31:0] MAX_DIST_SQUARE = 32'h01_0000_00,
+  parameter signed [31:0] EPSILON = 32'h00_0001_00
 )
 (
   input wire clk_pixel_in,
@@ -18,6 +83,8 @@ module raymarcher
   output logic [7:0] red_out,
   output logic [7:0] green_out,
   output logic [7:0] blue_out,
+  output logic [$clog2(WIDTH)-1:0] out_x,
+  output logic [$clog2(HEIGHT)-1:0] out_y,
   output logic pixel_done
 );
   typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING=4} raymarcher_state;
@@ -34,6 +101,9 @@ module raymarcher
   end
   logic sdf_done;
   logic signed [31:0] sdf_out;
+  logic [7:0] sdf_red_out;
+  logic [7:0] sdf_green_out;
+  logic [7:0] sdf_blue_out;
   sdf sdf_inst (
     .clk_in(clk_pixel_in),
     .rst_in(rst_in),
@@ -42,7 +112,10 @@ module raymarcher
     .y(ray_y),
     .z(ray_z),
     .sdf_done(sdf_done),
-    .sdf_out(sdf_out)
+    .sdf_out(sdf_out),
+    .sdf_red_out(sdf_red_out),
+    .sdf_green_out(sdf_green_out),
+    .sdf_blue_out(sdf_blue_out)
   );
 
   logic ray_gen_start;
@@ -93,7 +166,6 @@ module raymarcher
       state <= PIXEL_DONE;
     end else begin
       if(state == PIXEL_DONE) begin
-        ray_steps <= 0;
         $display("color out %d %d %d", red_out, green_out, blue_out);
         
         state <= INITIALIZING;
@@ -101,6 +173,8 @@ module raymarcher
         ray_gen_in_x <= dec_to_24_8(curr_x - WIDTH/2'd2);
         ray_gen_in_y <= dec_to_24_8(curr_y - HEIGHT/2'd2);
         ray_gen_in_z <= dec_to_24_8(WIDTH/3'd4+HEIGHT/3'd4);
+        out_x <= curr_x;
+        out_y <= curr_y;
         $display("ray_gen_in %h %h %h", ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
         state <= NORMALIZING_RAY;
       end else if(state == NORMALIZING_RAY) begin
@@ -118,16 +192,14 @@ module raymarcher
           state <= AWAITING_SDF;
         end
       end else if(state == AWAITING_SDF) begin
-        sdf_start <= 0;
-
         if (sdf_done) begin
           $display("sdf_out %d d", sdf_out >> 8);
 
           if(sdf_out[31] || sdf_out < EPSILON) begin
             $display("breaking from surface contact at distance %h h", sdf_out);
-            red_out <= 8'h00;
-            green_out <= 8'h00;
-            blue_out <= 8'h00;
+            red_out <= sdf_red_out;
+            green_out <= sdf_green_out;
+            blue_out <= sdf_blue_out;
 
             state <= PIXEL_DONE;
           end else begin
@@ -145,14 +217,14 @@ module raymarcher
           $display("breaking from max steps");
           red_out <= 8'hFF;
           green_out <= 8'h00;
-          blue_out <= 8'hFF;
+          blue_out <= 8'h00;
 
           state <= PIXEL_DONE;
         end else if(square_mag(ray_x, ray_y, ray_z) > MAX_DIST_SQUARE) begin
-          $display("breaking from max dist");
+          $display("breaking from max dist %b %b", square_mag(ray_x, ray_y, ray_z), MAX_DIST_SQUARE);
           red_out <= 8'hFF;
           green_out <= 8'hFF;
-          blue_out <= 8'hFF;
+          blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
 
           state <= PIXEL_DONE;
         end else begin
@@ -173,13 +245,27 @@ module sdf (
   input wire signed [31:0] y,
   input wire signed [31:0] z,
   output logic sdf_done,
-  output logic signed [31:0] sdf_out
+  output logic signed [31:0] sdf_out,
+  output logic [7:0] sdf_red_out,
+  output logic [7:0] sdf_green_out,
+  output logic [7:0] sdf_blue_out
 );
+  logic signed [31:0] sphere_1_dist;
+  logic signed [31:0] sphere_2_dist;
+
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
     end else begin
       if(sdf_start) begin
-        sdf_out <= abs_24_8(x) + abs_24_8(y) + abs_24_8(z - 32'h00096_00) - 32'h00001_00;
+        sdf_out <= signed_minimum( GOTTA SQUARE ROOT OR IT FREAKS OUT AND OVERFLOW
+          (square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00) - 32'h00090_00), 
+          (square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00) - 32'h00090_00)
+        );
+        $display("p1 dist^2 %d", square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00) >> 8);
+        $display("p2 dist^2 %d", square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00) >> 8);
+        sdf_red_out <= clamp_color((square_mag(x - 32'h00000_00, y - 32'h00020_00, z - 32'h00096_00)) >> 7);
+        sdf_green_out <= 8'h00;
+        sdf_blue_out <= clamp_color((square_mag(x - 32'h00000_00, y + 32'h00020_00, z - 32'h00096_00)) >> 7);
         sdf_done <= 1;
       end else begin
         sdf_done <= 0;

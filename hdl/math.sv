@@ -180,77 +180,77 @@ module div #(
     end
 endmodule
 
-function logic signed [31:0] square_mag;
-  input logic signed [31:0] x;
-  input logic signed [31:0] y;
-  input logic signed [31:0] z;
-  logic signed [31:0] i;
-  logic signed [31:0] j;
-  logic signed [31:0] k;
-  begin
-    i = mult_24_8(x,x);
-    j = mult_24_8(y,y);
-    k = mult_24_8(z,z);
-    square_mag = i + j + k;
-  end
-endfunction
+// function logic signed [31:0] square_mag;
+//   input logic signed [31:0] x;
+//   input logic signed [31:0] y;
+//   input logic signed [31:0] z;
+//   logic signed [31:0] i;
+//   logic signed [31:0] j;
+//   logic signed [31:0] k;
+//   begin
+//     i = mult_24_8(x,x);
+//     j = mult_24_8(y,y);
+//     k = mult_24_8(z,z);
+//     square_mag = i + j + k;
+//   end
+// endfunction
 
-function logic signed [31:0] mult_24_8;
-  input logic signed [31:0] a;
-  input logic signed [31:0] b;
-  logic signed [63:0] intermediate;
-  begin
-    intermediate = a * b;
-    mult_24_8 = {intermediate[63], intermediate[38:8]};
-  end
-endfunction
+// function logic signed [31:0] mult_24_8;
+//   input logic signed [31:0] a;
+//   input logic signed [31:0] b;
+//   logic signed [63:0] intermediate;
+//   begin
+//     intermediate = a * b;
+//     mult_24_8 = {intermediate[63], intermediate[38:8]};
+//   end
+// endfunction
 
-function logic signed [31:0] dec_to_24_8;
-  input logic [23:0] a;
-  begin
-    dec_to_24_8 = {a, 8'h00};
-  end
-endfunction
+// function logic signed [31:0] dec_to_24_8;
+//   input logic [23:0] a;
+//   begin
+//     dec_to_24_8 = {a, 8'h00};
+//   end
+// endfunction
 
-function logic signed [31:0] div_shift_estimate;
-  input logic signed [31:0] a;
-  input logic signed [31:0] b;
-  logic [31:0] b_abs;
-  logic [31:0] a_abs;
-  logic [4:0] b_log;
-  logic sign;
-  begin
-    sign = a[31] ^ b[31];
-    b_abs = b[31] ? ~b + 1 : b;
-    a_abs = a[31] ? ~a + 1 : a;
-    for(int i = 0; i < 31; i++) begin
-      if(b_abs[i] == 1) begin
-        b_log = i;
-      end
-    end
+// function logic signed [31:0] div_shift_estimate;
+//   input logic signed [31:0] a;
+//   input logic signed [31:0] b;
+//   logic [31:0] b_abs;
+//   logic [31:0] a_abs;
+//   logic [4:0] b_log;
+//   logic sign;
+//   begin
+//     sign = a[31] ^ b[31];
+//     b_abs = b[31] ? ~b + 1 : b;
+//     a_abs = a[31] ? ~a + 1 : a;
+//     for(int i = 0; i < 31; i++) begin
+//       if(b_abs[i] == 1) begin
+//         b_log = i;
+//       end
+//     end
 
-    if(b_log != 31) begin
-      if(b_log > 8) begin
-        div_shift_estimate = a_abs >> (b_log - 8);
-      end else begin
-        div_shift_estimate = a_abs << (8 - b_log);
-      end
-    end else begin
-      $display("div 0");
-      div_shift_estimate = 32'h7FFFFF_00;
-    end
+//     if(b_log != 31) begin
+//       if(b_log > 8) begin
+//         div_shift_estimate = a_abs >> (b_log - 8);
+//       end else begin
+//         div_shift_estimate = a_abs << (8 - b_log);
+//       end
+//     end else begin
+//       $display("div 0");
+//       div_shift_estimate = 32'h7FFFFF_00;
+//     end
 
-    if(sign) begin
-      div_shift_estimate = ~div_shift_estimate + 1;
-    end
-  end
-endfunction
+//     if(sign) begin
+//       div_shift_estimate = ~div_shift_estimate + 1;
+//     end
+//   end
+// endfunction
 
-function logic signed [31:0] abs_24_8;
-  input logic signed [31:0] a;
-  begin
-    abs_24_8 = a[31] ? ~a + 1 : a;
-  end
-endfunction
+// function logic signed [31:0] abs_24_8;
+//   input logic signed [31:0] a;
+//   begin
+//     abs_24_8 = a[31] ? ~a + 1 : a;
+//   end
+// endfunction
 
 `default_nettype wire

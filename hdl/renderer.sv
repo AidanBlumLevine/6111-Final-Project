@@ -15,11 +15,13 @@ module renderer
   output logic [7:0] green_out,
   output logic [7:0] blue_out
 );
-  logic [$clog2(HEIGHT)-1:0] curr_y;
   logic [$clog2(WIDTH)-1:0] curr_x;
+  logic [$clog2(HEIGHT)-1:0] curr_y;
+  logic [$clog2(WIDTH)-1:0] ray_out_x;
+  logic [$clog2(HEIGHT)-1:0] ray_out_y;
 
   logic [5:0] counter;
-  raymarcher_state ray_state;
+  logic pixel_done;
   logic [7:0] pixel_red;
   logic [7:0] pixel_green;
   logic [7:0] pixel_blue;
@@ -29,7 +31,12 @@ module renderer
       curr_x <= 0;
       curr_y <= 0;
     end else begin
-      if(ray_state == PIXEL_DONE) begin
+      if(pixel_done) begin
+        $display("pixel_done");
+        $display("frame_addr: %d", frame_addr);
+        $display("image_addr: %d", img_addr);
+        $display("curr_x: %d", curr_x);
+        $display("curr_y: %d", curr_y);
         curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
         curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       end
@@ -44,24 +51,29 @@ module renderer
     .rst_in(rst_in),
     .curr_x(curr_x),
     .curr_y(curr_y),
-    .state(ray_state),
+    .pixel_done(pixel_done),
     .red_out(pixel_red),
     .green_out(pixel_green),
-    .blue_out(pixel_blue)
+    .blue_out(pixel_blue),
+    .out_x(ray_out_x),
+    .out_y(ray_out_y)
   );
 
   logic in_frame;
   assign in_frame = (hcount_in < WIDTH) && (vcount_in < HEIGHT);
 
-  logic [10:0] img_addr;
+  logic [31:0] img_addr;
   assign img_addr = hcount_in + WIDTH * vcount_in;
+
+  logic [31:0] frame_addr;
+  assign frame_addr = ray_out_x + WIDTH * ray_out_y;
 
   logic [23:0] frame_buff_raw;
   xilinx_true_dual_port_read_first_2_clock_ram #(
     .RAM_WIDTH(24),
-    .RAM_DEPTH(WIDTH * HEIGHT))
-    frame_buffer (
-    .addra(curr_x + WIDTH * curr_y),
+    .RAM_DEPTH(WIDTH * HEIGHT)
+  ) frame_buffer (
+    .addra(frame_addr),
     .clka(clk_pixel_in),
     .wea(pixel_done),
     .dina({pixel_red, pixel_green, pixel_blue}),

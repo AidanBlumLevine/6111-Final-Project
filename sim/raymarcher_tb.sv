@@ -6,6 +6,8 @@ module tb;
     logic rst_in;
     logic [32:0] x_in;
     logic [32:0] y_in;
+    logic [32:0] x_out;
+    logic [32:0] y_out;
     logic [7:0] red_out;
     logic [7:0] green_out;
     logic [7:0] blue_out;
@@ -27,7 +29,9 @@ module tb;
       .red_out(red_out),
       .green_out(green_out),
       .blue_out(blue_out),
-      .pixel_done(pixel_done)
+      .pixel_done(pixel_done),
+      .out_x(x_out),
+      .out_y(y_out)
     );
 
     always begin
@@ -42,52 +46,44 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 150;
-        y_in = 140;
+        x_in = 0;
+        y_in = 0;
         #10  //wait a little bit of time at beginning
         rst_in = 1; //reset system
         #10; //hold high for a few clock cycles
         rst_in=0;
         #10;
-        a = dec_to_24_8(3);
-        b = dec_to_24_8(-1);
-        $display("a = %h", a);
-        $display("b = %h", b);
-        a = mult_24_8(a, b);
-        $display("prod = %h", a);
-        a = dec_to_24_8(3);
-        b = dec_to_24_8(4);
-        c = dec_to_24_8(0);
-        // a = mult_24_8(a, a);
-        // b = mult_24_8(b, b);
-        $display("a^2 = %h", mult_24_8(a, a));
-        $display("b^2 = %h", mult_24_8(b, b));
-        $display("c^2 = %h", mult_24_8(c, c));
-        $display("magsq 3,4,0 = %h", square_mag(a,b,c));
+        // a = dec_to_24_8(3);
+        // b = dec_to_24_8(-1);
+        // $display("a = %h", a);
+        // $display("b = %h", b);
+        // a = mult_24_8(a, b);
+        // $display("prod = %h", a);
+        // a = dec_to_24_8(3);
+        // b = dec_to_24_8(4);
+        // c = dec_to_24_8(0);
+        // // a = mult_24_8(a, a);
+        // // b = mult_24_8(b, b);
+        // $display("a^2 = %h", mult_24_8(a, a));
+        // $display("b^2 = %h", mult_24_8(b, b));
+        // $display("c^2 = %h", mult_24_8(c, c));
+        // $display("magsq 3,4,0 = %h", square_mag(a,b,c));
         
-        a = dec_to_24_8(256);
-        b = dec_to_24_8(-16);
-        $display("a = %h", a);
-        $display("b = %h", b);
-        a = div_shift_estimate(a, b);
-        $display("a / b= %h", a);
-        
-        a = dec_to_24_8(-256);
-        b = dec_to_24_8(16);
-        $display("a = %h", a);
-        $display("b = %h", b);
-        a = div_shift_estimate(a, b);
-        $display("a / b= %h", a);
         #10;
 
 
 
-        for (int i = 0; i<150; i= i+1)begin
+        while(!pixel_done)begin
+          // x_in = 100;
           // $display("i = %d", i);
           // $display("ray steps = %d", ray_steps);
           // $display("pixel_done = %d", pixel_done);
           #10;
         end
+        // $display("pixel_done = %d", pixel_done);
+        // $display("x out = %d", x_out);
+        // $display("y out = %d", y_out);
+        #10
         $display("Finishing Sim"); //print nice message
         $finish;
 

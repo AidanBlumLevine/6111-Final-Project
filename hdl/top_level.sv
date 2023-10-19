@@ -56,7 +56,7 @@ module top_level(
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
   renderer #(
-    .WIDTH(300),
+    .WIDTH(400),
     .HEIGHT(300)
   ) mrender (
     .clk_pixel_in(clk_pixel),
