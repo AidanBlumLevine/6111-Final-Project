@@ -46,8 +46,8 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 00;
-        y_in = 200;
+        x_in = 300;
+        y_in = 300;
         #10  //wait a little bit of time at beginning
         rst_in = 1; //reset system
         #10; //hold high for a few clock cycles

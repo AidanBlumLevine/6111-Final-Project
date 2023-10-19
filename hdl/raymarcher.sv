@@ -196,7 +196,7 @@ module raymarcher
         end
       end else if(state == AWAITING_SDF) begin
         if (sdf_done) begin
-          $display("sdf_out %d", $signed(sdf_out >> FIXED));
+          $display("sdf_out %d", sdf_out >> FIXED);
 
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             $display("breaking from surface contact at distance %h h", sdf_out);
@@ -303,25 +303,25 @@ module sdf (
           sphere_1_dist_squared <= square_mag(x, y - to_fixed(32), z - to_fixed(150));
           sphere_2_dist_squared <= square_mag(x, y + to_fixed(32), z - to_fixed(150));
           $display("sdf started with %d %d %d", $signed(x >> FIXED), $signed(y >> FIXED), $signed(z >> FIXED));
-          $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
-          $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
+          // $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
+          // $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
           state <= PROCESSING;
         end
       end else if(state == PROCESSING) begin
         if(sqrt_start) begin
+          $display("PROC");
           sqrt_start <= 0;
           // else below because the done signals are still 1 the frame after it is started? Idk why, but this fixed it.
         end else if(sphere_1_sqrt_done && sphere_2_sqrt_done) begin
-          $display("sphere 1 dist from sphere %d", $signed(sphere_1_dist - to_fixed(64) >> FIXED));
-          $display("sphere 2 dist from sphere %d", $signed(sphere_2_dist - to_fixed(64) >> FIXED));
-          $display("signed min %d", $signed(signed_minimum(
-            (sphere_1_dist - to_fixed(64)), 
-            (sphere_2_dist - to_fixed(64))
-          ) >> FIXED));
-          sdf_out <= signed_minimum(
-            (sphere_1_dist - to_fixed(64)), 
-            (sphere_2_dist - to_fixed(64))
-          );
+          $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
+          $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
+          // $display("sphere 1 dist from sphere %d", $signed(sphere_1_dist - to_fixed(64) >> FIXED));
+          // $display("sphere 2 dist from sphere %d", $signed(sphere_2_dist - to_fixed(64) >> FIXED));
+          // $display("signed min %d", $signed(signed_minimum(
+          //   (sphere_1_dist - to_fixed(64)), 
+          //   (sphere_2_dist - to_fixed(64))
+          // ) >> FIXED));
+          sdf_out <= sphere_1_dist - to_fixed(64);
           sdf_red_out <= clamp_color(sphere_1_dist >> FIXED << 1);
           sdf_green_out <= clamp_color(sphere_2_dist >> FIXED << 1);
           sdf_blue_out <= 8'h00;

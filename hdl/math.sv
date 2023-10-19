@@ -162,6 +162,7 @@ module div #(
                         bu <= (b_sig) ? -b[WIDTHU-1:0] : b[WIDTHU-1:0];  // register abs(b)
                         sig_diff <= (a_sig ^ b_sig);  // register input sign difference
                         busy <= 1;
+                        done <= 0;
                         dbz <= 0;
                         ovf <= 0;
                     end
