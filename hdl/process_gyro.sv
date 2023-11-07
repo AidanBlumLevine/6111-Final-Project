@@ -4,7 +4,6 @@ module process_gyro(
     input wire [0:15] gx, 
     input wire [0:15] gy,
     input wire [0:15] gz,
-    input wire INT, 
     output reg [0:15] pitch,
     output reg [0:15] roll,
     output reg [0:15] yaw,
@@ -12,20 +11,21 @@ module process_gyro(
     );
 
 logic pitch_ready, roll_ready, yaw_ready;
+logic [0:15] curPitch, curRoll, curYaw;
 logic [0:15] dPitch, dRoll, dYaw;
 
 div divide (
     .clk(clk_100mhz),
     .a(gx),
     .b(10),
-    .q(dPitch),
+    .q(dRoll),
     );
 
 div divide (
     .clk(clk_100mhz),
     .a(gy),
     .b(10),
-    .q(dRoll),
+    .q(dPitch),
     );
 
 div divide (
@@ -36,6 +36,22 @@ div divide (
     );
 
 always_ff @(posedge clk_100mhz) begin 
-
-end 
+  if (rst_in) begin 
+    curPitch <= 0;
+    curRoll <= 0;
+    curYaw <= 0;
+    pitch <= 0;
+    roll <= 0;
+    yaw <= 0;
+    ready <= 0;
+  end else begin 
+    curPitch <= pitch;
+    curRoll <= roll;
+    curYaw <= yaw;
+    pitch <= curPitch + dPitch;
+    roll <= curRoll + dRoll;
+    yaw <= curYaw + dYaw;
+    ready <= 1;
+  end
+end  
 endmodule
