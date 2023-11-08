@@ -25,11 +25,13 @@ module renderer
   logic [7:0] pixel_red;
   logic [7:0] pixel_green;
   logic [7:0] pixel_blue;
+  logic [31:0] timer;
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
       curr_x <= 0;
       curr_y <= 0;
+      timer <= 0;
     end else begin
       if(pixel_done) begin
         $display("pixel_done");
@@ -39,6 +41,7 @@ module renderer
         $display("curr_y: %d", curr_y);
         curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
         curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
+        timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
       end
     end
   end
@@ -51,6 +54,7 @@ module renderer
     .rst_in(rst_in),
     .curr_x(curr_x),
     .curr_y(curr_y),
+    .timer(timer),
     .pixel_done(pixel_done),
     .red_out(pixel_red),
     .green_out(pixel_green),

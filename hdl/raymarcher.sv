@@ -83,6 +83,7 @@ module raymarcher
   input wire rst_in,
   input wire [$clog2(WIDTH)-1:0] curr_x,
   input wire [$clog2(HEIGHT)-1:0] curr_y,
+  input wire [31:0] timer,
   output logic [7:0] red_out,
   output logic [7:0] green_out,
   output logic [7:0] blue_out,
@@ -114,6 +115,7 @@ module raymarcher
     .x(ray_x),
     .y(ray_y),
     .z(ray_z),
+    .timer(timer),
     .sdf_done(sdf_done),
     .sdf_out(sdf_out),
     .sdf_red_out(sdf_red_out),
@@ -200,9 +202,10 @@ module raymarcher
 
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             $display("breaking from surface contact at distance %h h", sdf_out);
-            red_out <= sdf_red_out;
-            green_out <= sdf_green_out;
-            blue_out <= sdf_blue_out;
+
+            red_out <= sdf_red_out >> (ray_steps >> 1);
+            green_out <= sdf_green_out >> (ray_steps >> 1);
+            blue_out <= sdf_blue_out >> (ray_steps >> 1);
 
             state <= PIXEL_DONE;
           end else begin
@@ -227,7 +230,8 @@ module raymarcher
           $display("breaking from max dist %d %d", $signed(square_mag(ray_x, ray_y, ray_z) >> FIXED), $signed(MAX_DIST_SQUARE >> FIXED));
           red_out <= 8'hFF;
           green_out <= 8'hFF;
-          blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
+          // blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
+          blue_out <= 8'hFF;
 
           state <= PIXEL_DONE;
         end else begin
@@ -247,6 +251,7 @@ module sdf (
   input wire signed [BITS-1:0] x,
   input wire signed [BITS-1:0] y,
   input wire signed [BITS-1:0] z,
+  input wire [31:0] timer,
   output logic sdf_done,
   output logic signed [BITS-1:0] sdf_out,
   output logic [7:0] sdf_red_out,
@@ -300,8 +305,8 @@ module sdf (
         if(sdf_start) begin
           sqrt_start <= 1;
 
-          sphere_1_dist_squared <= square_mag(x, y - to_fixed(32), z - to_fixed(150));
-          sphere_2_dist_squared <= square_mag(x, y + to_fixed(32), z - to_fixed(150));
+          sphere_1_dist_squared <= square_mag(x + to_fixed(timer[4:0]) - to_fixed(16), y - to_fixed(20), z - to_fixed(150));
+          sphere_2_dist_squared <= square_mag(x, y + to_fixed(20), z - to_fixed(150));
           $display("sdf started with %d %d %d", $signed(x >> FIXED), $signed(y >> FIXED), $signed(z >> FIXED));
           // $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
           // $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
@@ -322,12 +327,12 @@ module sdf (
           //   (sphere_2_dist - to_fixed(64))
           // ) >> FIXED));
           sdf_out <= signed_minimum(
-            (sphere_1_dist - to_fixed(64)), 
-            (sphere_2_dist - to_fixed(64))
+            (sphere_1_dist - to_fixed(32)), 
+            (sphere_2_dist - to_fixed(32))
           );
-          sdf_red_out <= clamp_color(sphere_1_dist >> FIXED << 1);
-          sdf_green_out <= clamp_color(sphere_2_dist >> FIXED << 1);
-          sdf_blue_out <= 8'h00;
+          sdf_red_out <= sphere_1_dist < sphere_2_dist ? 8'hF0 : 8'h00;
+          sdf_green_out <= sphere_1_dist >= sphere_2_dist ? 8'hF0 : 8'h00;
+          sdf_blue_out <= sphere_1_dist >= sphere_2_dist ? 8'hF0 : 8'h00;
 
           state <= DONE;
         end
