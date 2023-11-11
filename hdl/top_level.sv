@@ -114,44 +114,44 @@ module top_level(
   OBUFDS OBUFDS_red  (.I(tmds_signal[2]), .O(hdmi_tx_p[2]), .OB(hdmi_tx_n[2]));
   OBUFDS OBUFDS_clock(.I(clk_pixel), .O(hdmi_clk_p), .OB(hdmi_clk_n));
 
-// Generates a 50mhz clk
-logic [31:0] counter;
-logic clk_50MHz;
-always @(posedge clk_100MHz) begin
-    counter <= counter + 1;
-    if (counter == 25000000) begin
-        clk_50MHz <= ~clk_50MHz;
-        counter <= 0;
-    end
-end
+// // Generates a 50mhz clk
+// logic [31:0] counter;
+// logic clk_50MHz;
+// always @(posedge clk_100MHz) begin
+//     counter <= counter + 1;
+//     if (counter == 25000000) begin
+//         clk_50MHz <= ~clk_50MHz;
+//         counter <= 0;
+//     end
+// end
 
-// Gyroscope interface
-logic [15:0] gx, gy, gz;
-mpu_rg mpu6050(
-    .CLOCK_50(clk_50MHz),
-    .en(1'b1),
-    .rst(sys_rst),
-    .I2C_SDAT(pmodb[1]),
-    .I2C_SCLK(pmodb[2]),
-    .gx(gx),
-    .gy(gy),
-    .gz(gz)
-);
+// // Gyroscope interface
+// logic [15:0] gx, gy, gz;
+// mpu_rg mpu6050(
+//     .CLOCK_50(clk_50MHz),
+//     .en(1'b1),
+//     .rst(sys_rst),
+//     .I2C_SDAT(pmodb[1]),
+//     .I2C_SCLK(pmodb[2]),
+//     .gx(gx),
+//     .gy(gy),
+//     .gz(gz)
+// );
 
-logic [15:0] pitch, roll, yaw;
-logic gyro_done; 
-// Processing output from gyroscope
-process_gyro gyro_process(
-    .clk(clk_100MHz),
-    .rst_in(sys_rst),
-    .gx(gx),
-    .gy(gy),
-    .gz(gz),
-    .pitch(pitch),
-    .roll(roll),
-    .yaw(yaw),
-    .ready(gyro_done)
-);
+// logic [15:0] pitch, roll, yaw;
+// logic gyro_done; 
+// // Processing output from gyroscope
+// process_gyro gyro_process(
+//     .clk(clk_100MHz),
+//     .rst_in(sys_rst),
+//     .gx(gx),
+//     .gy(gy),
+//     .gz(gz),
+//     .pitch(pitch),
+//     .roll(roll),
+//     .yaw(yaw),
+//     .ready(gyro_done)
+// );
 
 
 endmodule // top_level

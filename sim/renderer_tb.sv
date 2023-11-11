@@ -11,8 +11,8 @@ module tb;
     logic [7:0] blue_out;
 
     renderer #(
-      .WIDTH(300),
-      .HEIGHT(300)
+      .WIDTH(320),
+      .HEIGHT(180)
     ) raym (
       .clk_pixel_in(clk_in),
       .rst_in(rst_in),
@@ -44,13 +44,10 @@ module tb;
         #10;
 
 
+        x_in = i;
+        y_in = 300-i;
 
-        for(int i =0;i<100;i++)begin
-          $display("LOOP green_out = %d", green_out);
-          x_in = i;
-          y_in = 300-i;
-          #10;
-        end
+
         #10
         $display("Finishing Sim"); //print nice message
         $finish;

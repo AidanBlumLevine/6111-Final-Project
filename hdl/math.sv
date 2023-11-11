@@ -136,7 +136,9 @@ module div #(
             end
             SIGN: begin  // adjust quotient sign if non-zero and input signs differ
                 state <= IDLE;
-                if (quo != 0) val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
+                // if (quo != 0) val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
+                // CHANGED FROM THE COPIED CODE - NO IDEA WHY THAT ONE DOESNT SET THE VALUE IF ITS 0
+                val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
                 busy <= 0;
                 done <= 1;
                 valid <= 1;
