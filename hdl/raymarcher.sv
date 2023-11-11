@@ -3,6 +3,9 @@
 
 parameter BITS = 32;
 parameter FIXED = 16;
+parameter BG_RED = 8'hFF;
+parameter BG_GREEN = 8'hFF;
+parameter BG_BLUE = 8'hFF;
 
 function logic signed [BITS-1:0] mult;
   input logic signed [BITS-1:0] a;
@@ -242,11 +245,10 @@ module raymarcher
         end
       end else if (state == MARCHING2) begin
         if(abs(ray_x) + abs(ray_y) + abs(ray_z) > MAX_DIST_MANHATTEN) begin
-          red_out <= 8'hFF;
-          green_out <= 8'hFF;
+          red_out <= BG_RED;
+          green_out <= BG_GREEN;
+          blue_out <= BG_BLUE;
           // blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
-          blue_out <= 8'hFF;
-
           state <= PIXEL_DONE;
         end else begin
           ray_steps <= ray_steps + 1;
@@ -258,9 +260,9 @@ module raymarcher
           if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
-            red_out <= 8'h00;
-            green_out <= 8'h00;
-            blue_out <= 8'h00;
+            red_out <= BG_RED;
+            green_out <= BG_GREEN;
+            blue_out <= BG_BLUE;
           end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
             ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
             ray_x <= ray_x - NORMAL_EPS;
