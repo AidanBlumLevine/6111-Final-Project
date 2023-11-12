@@ -31,7 +31,20 @@ module tb;
       .blue_out(blue_out),
       .pixel_done(pixel_done),
       .out_x(x_out),
-      .out_y(y_out)
+      .out_y(y_out),
+      // ====================================
+    .camera_x(to_fixed(30)),
+    .camera_y(to_fixed(0)),
+    .camera_z(to_fixed(0)),
+    .camera_u_x(to_fixed(1)),
+    .camera_u_y(to_fixed(0)),
+    .camera_u_z(to_fixed(1)),
+    .camera_v_x(to_fixed(0)),
+    .camera_v_y(to_fixed(1)),
+    .camera_v_z(to_fixed(0)),
+    .camera_forward_x(to_fixed(-100)),
+    .camera_forward_y(to_fixed(0)),
+    .camera_forward_z(to_fixed(100))
     );
 
     always begin
@@ -46,8 +59,8 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 16*11;
-        y_in = 16*7;
+        x_in = 0;
+        y_in = 100;
         #30  //wait a little bit of time at beginning
         rst_in = 1; //reset system
         #30; //hold high for a few clock cycles

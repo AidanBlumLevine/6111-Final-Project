@@ -64,7 +64,20 @@ module renderer
     .green_out(pixel_green),
     .blue_out(pixel_blue),
     .out_x(ray_out_x),
-    .out_y(ray_out_y)
+    .out_y(ray_out_y),
+    // ====================================
+    .camera_x(to_fixed(0)),
+    .camera_y(to_fixed(0)),
+    .camera_z(to_fixed(0)),
+    .camera_u_x(to_fixed(1)),
+    .camera_u_y(to_fixed(0)),
+    .camera_u_z(to_fixed(0)),
+    .camera_v_x(to_fixed(0)),
+    .camera_v_y(to_fixed(1)),
+    .camera_v_z(to_fixed(0)),
+    .camera_forward_x(to_fixed(0)),
+    .camera_forward_y(to_fixed(0)),
+    .camera_forward_z(to_fixed(150))
   );
 
   logic in_frame;

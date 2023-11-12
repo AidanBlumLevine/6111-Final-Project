@@ -78,7 +78,7 @@ module raymarcher
 #(
   parameter WIDTH = 1280,
   parameter HEIGHT = 720,
-  parameter MAX_STEPS = 400,
+  parameter MAX_STEPS = 100,
   parameter signed [BITS-1:0] MAX_DIST_MANHATTEN = 1'b1 << (BITS - 7),
   parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 3) // .0001
 )
@@ -87,6 +87,20 @@ module raymarcher
   input wire rst_in,
   input wire [$clog2(WIDTH)-1:0] curr_x,
   input wire [$clog2(HEIGHT)-1:0] curr_y,
+  // ========================================
+  input wire signed [BITS-1:0] camera_x,
+  input wire signed [BITS-1:0] camera_y,
+  input wire signed [BITS-1:0] camera_z,
+  input wire signed [BITS-1:0] camera_u_x,
+  input wire signed [BITS-1:0] camera_u_y,
+  input wire signed [BITS-1:0] camera_u_z,
+  input wire signed [BITS-1:0] camera_v_x,
+  input wire signed [BITS-1:0] camera_v_y,
+  input wire signed [BITS-1:0] camera_v_z,
+  input wire signed [BITS-1:0] camera_forward_x,
+  input wire signed [BITS-1:0] camera_forward_y,
+  input wire signed [BITS-1:0] camera_forward_z,
+  // ========================================
   input wire [31:0] timer,
   output logic [7:0] red_out,
   output logic [7:0] green_out,
@@ -164,29 +178,15 @@ module raymarcher
 
 
   always_ff @(posedge clk_in) begin
-    // if(state == PIXEL_DONE) begin
-    //   $display("PIXEL_DONE");
-    // end else if(state == INITIALIZING) begin
-    //   $display("INITIALIZING");
-    // end else if(state == AWAITING_SDF) begin
-    //   $display("AWAITING_SDF");
-    // end else if(state == NORMALIZING_RAY) begin
-    //   $display("NORMALIZING_RAY");
-    // end else if(state == MARCHING) begin
-    //   $display("MARCHING");
-    // end
-
     if(rst_in) begin
       state <= PIXEL_DONE;
     end else begin
       if(state == PIXEL_DONE) begin
-        // $display("color out %d %d %d", red_out, green_out, blue_out);
-        
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
-        ray_gen_in_x <= to_fixed(curr_x - WIDTH/2'd2);
-        ray_gen_in_y <= to_fixed(curr_y - HEIGHT/2'd2);
-        ray_gen_in_z <= to_fixed(WIDTH/3'd4+HEIGHT/3'd4);
+        ray_gen_in_x <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_x) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_x) + camera_forward_x;
+        ray_gen_in_y <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_y) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_y) + camera_forward_y;
+        ray_gen_in_z <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_z) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_z) + camera_forward_z;
         out_x <= curr_x;
         out_y <= curr_y;
         ray_gen_start <= 1;
@@ -197,9 +197,9 @@ module raymarcher
           dir_x <= ray_gen_out_x;
           dir_y <= ray_gen_out_y;
           dir_z <= ray_gen_out_z;
-          ray_x <= 0;
-          ray_y <= 0;
-          ray_z <= 0;
+          ray_x <= camera_x;
+          ray_y <= camera_y;
+          ray_z <= camera_z;
           ray_dist <= 0;
           ray_steps <= 0;
           sdf_start <= 1;
@@ -228,6 +228,9 @@ module raymarcher
           red_out <= 8'hFF;
           green_out <= 8'h00;
           blue_out <= 8'hFF;
+          // red_out <= BG_RED;
+          // green_out <= BG_GREEN;
+          // blue_out <= BG_BLUE;
           state <= PIXEL_DONE;
         end else begin
           ray_x <= ray_x + mult(dir_x, sdf_out);
@@ -245,15 +248,15 @@ module raymarcher
           state <= PIXEL_DONE;
         end else begin
           // domain repeptition =========================
-          // if(ray_x > to_fixed(50)) begin
-          //   ray_x <= ray_x - to_fixed(100);
-          // end else if(ray_x < -to_fixed(50)) begin
-          //   ray_x <= ray_x + to_fixed(100);
+          // if(ray_x > to_fixed(25)) begin
+          //   ray_x <= ray_x - to_fixed(50);
+          // end else if(ray_x < -to_fixed(25)) begin
+          //   ray_x <= ray_x + to_fixed(50);
           // end
-          // if(ray_y > to_fixed(50)) begin
-          //   ray_y <= ray_y - to_fixed(100);
-          // end else if(ray_y < -to_fixed(50)) begin
-          //   ray_y <= ray_y + to_fixed(100);
+          // if(ray_y > to_fixed(25)) begin
+          //   ray_y <= ray_y - to_fixed(50);
+          // end else if(ray_y < -to_fixed(25)) begin
+          //   ray_y <= ray_y + to_fixed(50);
           // end
           // if(ray_z > to_fixed(50)) begin
           //   ray_z <= ray_z - to_fixed(100);
@@ -271,9 +274,12 @@ module raymarcher
           if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
-            red_out <= BG_RED;
-            green_out <= BG_GREEN;
-            blue_out <= BG_BLUE;
+            red_out <= 8'h00;
+            green_out <= 8'hFF;
+            blue_out <= 8'hFF;
+            // red_out <= BG_RED;
+            // green_out <= BG_GREEN;
+            // blue_out <= BG_BLUE;
           end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
             ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
             ray_x <= ray_x - NORMAL_EPS;
@@ -295,28 +301,28 @@ module raymarcher
       end else if (state == SHADING) begin
         ray_gen_start <= 0;
         if(~ray_gen_start && ray_gen_done) begin
-          light_fac <= mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(1);//
+          light_fac <= mult(
+                        (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1,
+                        to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1))
+                      );
           state <= SHADING2;
         end
       end else if (state == SHADING2) begin
-        // red_out <= mult(to_fixed(127), light_fac) >>> FIXED;
-        // green_out <= mult(to_fixed(127), light_fac) >>> FIXED;
-        // blue_out <= mult(to_fixed(127), light_fac) >>> FIXED;
-        if(light_fac >= 0) begin
-          // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-          // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-          // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-          red_out <= (mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED;
-          green_out <= (mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED;
-          blue_out <= (mult(to_fixed(blue_out), light_fac >> 1)) >>> FIXED;
-        end else begin
-          red_out <= BG_RED;
-          green_out <= BG_GREEN;
-          blue_out <= BG_BLUE;
-        end
-        // red_out <= mult(to_fixed(red_out), light_fac >> 1) >>> FIXED;
-        // green_out <= mult(to_fixed(green_out), light_fac >> 1) >>> FIXED;
-        // blue_out <= mult(to_fixed(blue_out), light_fac >> 1) >>> FIXED;
+        // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        red_out <= clamp_color((mult((ray_gen_out_x + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        green_out <= clamp_color((mult((ray_gen_out_y + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        blue_out <= clamp_color((mult((ray_gen_out_z + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
+        // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
+        // blue_out <= clamp_color((mult(to_fixed(blue_out), light_fac >> 1)) >>> FIXED);
+        // red_out <= 255 - (ray_dist >> FIXED);
+        // green_out <= 255 - (ray_dist >> FIXED);
+        // blue_out <= 255 - (ray_dist >> FIXED);
+        // red_out <= BG_RED;
+        // green_out <= BG_GREEN;
+        // blue_out <= BG_BLUE;
         state <= PIXEL_DONE;
       end
     end
@@ -434,7 +440,7 @@ module sdf (
           if(sphere_1_dist < sphere_2_dist && sphere_1_dist < sphere_3_dist - to_fixed(6)) begin
             sdf_red_out <= 8'hF0;
             sdf_green_out <= 8'h00;
-            sdf_blue_out <= 8'hF00;
+            sdf_blue_out <= 8'hF0;
           end else if (sphere_2_dist < sphere_3_dist - to_fixed(6)) begin
             sdf_red_out <= 8'h00;
             sdf_green_out <= 8'hF0;
@@ -468,14 +474,10 @@ module ray_gen (
 
   logic signed [BITS-1:0] norm;
   logic signed [BITS-1:0] sqrt_in;
-  logic processing;
   logic div_start;
   logic div_x_done;
   logic div_y_done;
   logic div_z_done;
-  logic div_x_set;
-  logic div_y_set;
-  logic div_z_set;
   logic signed [BITS-1:0] div_x_out;
   logic signed [BITS-1:0] div_y_out;
   logic signed [BITS-1:0] div_z_out;
@@ -538,7 +540,6 @@ module ray_gen (
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
-      processing <= 0;
       ray_gen_done <= 0;
       sqrt_start <= 0;
       div_start <= 0;
@@ -548,9 +549,6 @@ module ray_gen (
         IDLE: begin
           if(ray_gen_start) begin
             sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
-            div_x_set <= 0;
-            div_y_set <= 0;
-            div_z_set <= 0;
             sqrt_start <= 1;
             ray_gen_done <= 0;
             state <= CALC_NORMAL;
