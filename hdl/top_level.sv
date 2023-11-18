@@ -5,6 +5,7 @@ module top_level(
   input wire clk_100mhz, //crystal reference clock
   input wire [15:0] sw, //all 16 input slide switches
   input wire [3:0] btn, //all four momentary button switches
+  input wire [7:0] pmodb, //pmodb input (8 bit)
   output logic [15:0] led, //16 green output LEDs (located right above switches)
   output logic [2:0] rgb0, //rgb led
   output logic [2:0] rgb1, //rgb led
@@ -117,7 +118,7 @@ module top_level(
 // Generates a 50mhz clk
 logic [31:0] counter;
 logic clk_50MHz;
-always @(posedge clk_100MHz) begin
+always @(posedge clk_100mhz) begin
     counter <= counter + 1;
     if (counter == 25000000) begin
         clk_50MHz <= ~clk_50MHz;
@@ -125,33 +126,37 @@ always @(posedge clk_100MHz) begin
     end
 end
 
+logic SDAT;
+logic SCLK;
+assign SDAT = pmodb[1];
+assign SCLK = pmodb[2];
 // Gyroscope interface
 logic [15:0] gx, gy, gz;
 mpu_rg mpu6050(
     .CLOCK_50(clk_50MHz),
     .en(1'b1),
-    .rst(sys_rst),
-    .I2C_SDAT(pmodb[1]),
-    .I2C_SCLK(pmodb[2]),
+    .reset_n(sys_rst),
+    .I2C_SDAT(SDAT),
+    .I2C_SCLK(SCLK),
     .gx(gx),
     .gy(gy),
     .gz(gz)
 );
 
-logic [15:0] pitch, roll, yaw;
-logic gyro_done; 
-// Processing output from gyroscope
-process_gyro gyro_process(
-    .clk(clk_100MHz),
-    .rst_in(sys_rst),
-    .gx(gx),
-    .gy(gy),
-    .gz(gz),
-    .pitch(pitch),
-    .roll(roll),
-    .yaw(yaw),
-    .ready(gyro_done)
-);
+// logic [15:0] pitch, roll, yaw;
+// logic gyro_done; 
+// // Processing output from gyroscope
+// process_gyro gyro_process(
+//     .clk(clk_100mhz),
+//     .rst_in(sys_rst),
+//     .gx(gx),
+//     .gy(gy),
+//     .gz(gz),
+//     .pitch(pitch),
+//     .roll(roll),
+//     .yaw(yaw),
+//     .ready(gyro_done)
+// );
 
 
 endmodule // top_level
