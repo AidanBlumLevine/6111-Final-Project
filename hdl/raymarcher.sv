@@ -3,6 +3,9 @@
 
 parameter BITS = 32;
 parameter FIXED = 16;
+parameter BG_RED = 8'hFF;
+parameter BG_GREEN = 8'hFF;
+parameter BG_BLUE = 8'hFF;
 
 function logic signed [BITS-1:0] mult;
   input logic signed [BITS-1:0] a;
@@ -47,14 +50,15 @@ function logic signed [BITS-1:0] signed_minimum;
   input logic signed [BITS-1:0] a;
   input logic signed [BITS-1:0] b;
   begin
-    if(a[BITS-1] && !b[BITS-1])
-      signed_minimum = b;
-    else if(!a[BITS-1] && b[BITS-1])
+    if(a[BITS-1] && !b[BITS-1]) begin
       signed_minimum = a;
-    else if(a[BITS-1] && b[BITS-1])
+    end else if(!a[BITS-1] && b[BITS-1]) begin
+      signed_minimum = b;
+    end else if(a[BITS-1] && b[BITS-1]) begin
       signed_minimum = a > b ? a : b;
-    else
+    end else begin
       signed_minimum = a < b ? a : b;
+    end
   end
 endfunction
 
@@ -75,14 +79,29 @@ module raymarcher
   parameter WIDTH = 1280,
   parameter HEIGHT = 720,
   parameter MAX_STEPS = 100,
-  parameter signed [BITS-1:0] MAX_DIST_SQUARE = 1000000 << FIXED,
-  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 4) // .0001
+  parameter signed [BITS-1:0] MAX_DIST_MANHATTEN = 1'b1 << (BITS - 7),
+  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 3) // .0001
 )
 (
   input wire clk_in,
   input wire rst_in,
   input wire [$clog2(WIDTH)-1:0] curr_x,
   input wire [$clog2(HEIGHT)-1:0] curr_y,
+  // ========================================
+  input wire signed [BITS-1:0] camera_x,
+  input wire signed [BITS-1:0] camera_y,
+  input wire signed [BITS-1:0] camera_z,
+  input wire signed [BITS-1:0] camera_u_x,
+  input wire signed [BITS-1:0] camera_u_y,
+  input wire signed [BITS-1:0] camera_u_z,
+  input wire signed [BITS-1:0] camera_v_x,
+  input wire signed [BITS-1:0] camera_v_y,
+  input wire signed [BITS-1:0] camera_v_z,
+  input wire signed [BITS-1:0] camera_forward_x,
+  input wire signed [BITS-1:0] camera_forward_y,
+  input wire signed [BITS-1:0] camera_forward_z,
+  // ========================================
+  input wire [31:0] timer,
   output logic [7:0] red_out,
   output logic [7:0] green_out,
   output logic [7:0] blue_out,
@@ -90,7 +109,7 @@ module raymarcher
   output logic [$clog2(HEIGHT)-1:0] out_y,
   output logic pixel_done
 );
-  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING=4} raymarcher_state;
+  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING1=4, MARCHING2=5, CALC_NORMAL=6, SHADING=7, SHADING2} raymarcher_state;
   raymarcher_state state;
   always_comb begin
     pixel_done = state == PIXEL_DONE;
@@ -98,10 +117,11 @@ module raymarcher
 
   logic [$clog2(MAX_STEPS):0] ray_steps;
 
+  logic signed [BITS-1:0] normal_base_dist;
+  localparam UNCALCULATED_NORMAL_VALUE = {3'b111, {FIXED{1'b0}}};
+  localparam NORMAL_EPS = {1'b1, {(FIXED-5){1'b0}}};
+
   logic sdf_start;
-  always_comb begin
-    sdf_start = state == AWAITING_SDF;
-  end
   logic sdf_done;
   logic signed [BITS-1:0] sdf_out;
   logic [7:0] sdf_red_out;
@@ -114,6 +134,7 @@ module raymarcher
     .x(ray_x),
     .y(ray_y),
     .z(ray_z),
+    .timer(timer),
     .sdf_done(sdf_done),
     .sdf_out(sdf_out),
     .sdf_red_out(sdf_red_out),
@@ -122,9 +143,6 @@ module raymarcher
   );
 
   logic ray_gen_start;
-  always_comb begin
-    ray_gen_start = state == NORMALIZING_RAY;
-  end
   logic ray_gen_done;
   logic signed [BITS-1:0] ray_gen_out_x;
   logic signed [BITS-1:0] ray_gen_out_y;
@@ -145,6 +163,7 @@ module raymarcher
     .ray_gen_in_z(ray_gen_in_z)
   );
 
+  logic signed [BITS-1:0] ray_dist;
   logic signed [BITS-1:0] ray_x;
   logic signed [BITS-1:0] ray_y;
   logic signed [BITS-1:0] ray_z;
@@ -152,90 +171,160 @@ module raymarcher
   logic signed [BITS-1:0] dir_y;
   logic signed [BITS-1:0] dir_z;
 
-  always_ff @(posedge clk_in) begin
-    // if(state == PIXEL_DONE) begin
-    //   $display("PIXEL_DONE");
-    // end else if(state == INITIALIZING) begin
-    //   $display("INITIALIZING");
-    // end else if(state == AWAITING_SDF) begin
-    //   $display("AWAITING_SDF");
-    // end else if(state == NORMALIZING_RAY) begin
-    //   $display("NORMALIZING_RAY");
-    // end else if(state == MARCHING) begin
-    //   $display("MARCHING");
-    // end
+  logic signed [BITS-1:0] light_fac;
+  localparam signed [BITS-1:0] light_x = to_fixed(28) >>> 5;
+  localparam signed [BITS-1:0] light_y = to_fixed(11) >>> 5;
+  localparam signed [BITS-1:0] light_z = to_fixed(-8) >>> 5;
 
+
+  always_ff @(posedge clk_in) begin
     if(rst_in) begin
       state <= PIXEL_DONE;
     end else begin
       if(state == PIXEL_DONE) begin
-        $display("color out %d %d %d", red_out, green_out, blue_out);
-        
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
-        ray_gen_in_x <= to_fixed(curr_x - WIDTH/2'd2);
-        ray_gen_in_y <= to_fixed(curr_y - HEIGHT/2'd2);
-        ray_gen_in_z <= to_fixed(WIDTH/3'd4+HEIGHT/3'd4);
+        ray_gen_in_x <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_x) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_x) + camera_forward_x;
+        ray_gen_in_y <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_y) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_y) + camera_forward_y;
+        ray_gen_in_z <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_z) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_z) + camera_forward_z;
         out_x <= curr_x;
         out_y <= curr_y;
-        // $display("ray_gen_in curr_x %h adj %h fixed%h",curr_x, curr_x - WIDTH/2'd2, to_fixed(curr_x - WIDTH/2'd2));
+        ray_gen_start <= 1;
         state <= NORMALIZING_RAY;
       end else if(state == NORMALIZING_RAY) begin
-        if(ray_gen_done) begin
+        ray_gen_start <= 0;
+        if(~ray_gen_start && ray_gen_done) begin
           dir_x <= ray_gen_out_x;
           dir_y <= ray_gen_out_y;
           dir_z <= ray_gen_out_z;
-          ray_x <= 0;
-          ray_y <= 0;
-          ray_z <= 0;
+          ray_x <= camera_x;
+          ray_y <= camera_y;
+          ray_z <= camera_z;
+          ray_dist <= 0;
           ray_steps <= 0;
-
-          $display("normalized to (.%d) (.%d) (.%d)", $signed(ray_gen_out_x >> (FIXED-3)), $signed(ray_gen_out_y >> (FIXED-3)), $signed(ray_gen_out_z >> (FIXED-3)));
-
+          sdf_start <= 1;
           state <= AWAITING_SDF;
         end
       end else if(state == AWAITING_SDF) begin
+        sdf_start <= 0;
         if (sdf_done) begin
-          $display("sdf_out %d", sdf_out >> FIXED);
-
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
-            $display("breaking from surface contact at distance %h h", sdf_out);
+            normal_base_dist <= sdf_out;
             red_out <= sdf_red_out;
             green_out <= sdf_green_out;
             blue_out <= sdf_blue_out;
-
-            state <= PIXEL_DONE;
+            ray_gen_in_x <= UNCALCULATED_NORMAL_VALUE;
+            ray_gen_in_y <= UNCALCULATED_NORMAL_VALUE;
+            ray_gen_in_z <= UNCALCULATED_NORMAL_VALUE;
+            ray_x <= ray_x + NORMAL_EPS;
+            sdf_start <= 1;
+            state <= CALC_NORMAL;
           end else begin
-
-            state <= MARCHING;
+            state <= MARCHING1;
           end
         end
-      end else if (state == MARCHING) begin
-        $display("marching from %d %d %d", $signed(ray_x >> FIXED), $signed(ray_y >> FIXED), $signed(ray_z >> FIXED));
-        ray_x <= ray_x + mult(dir_x, sdf_out);
-        ray_y <= ray_y + mult(dir_y, sdf_out);
-        ray_z <= ray_z + mult(dir_z, sdf_out);
-        $display("to            %d %d %d", $signed(ray_x + mult(dir_x, sdf_out) >> FIXED), $signed(ray_y + mult(dir_y, sdf_out) >> FIXED), $signed(ray_z + mult(dir_z, sdf_out) >> FIXED));
+      end else if (state == MARCHING1) begin
         if(ray_steps > MAX_STEPS) begin
-          $display("breaking from max steps");
           red_out <= 8'hFF;
           green_out <= 8'h00;
-          blue_out <= 8'h00;
-
-          state <= PIXEL_DONE;
-        end else if(square_mag(ray_x, ray_y, ray_z) > MAX_DIST_SQUARE) begin
-          $display("breaking from max dist %d %d", $signed(square_mag(ray_x, ray_y, ray_z) >> FIXED), $signed(MAX_DIST_SQUARE >> FIXED));
-          red_out <= 8'hFF;
-          green_out <= 8'hFF;
-          blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
-
+          blue_out <= 8'hFF;
+          // red_out <= BG_RED;
+          // green_out <= BG_GREEN;
+          // blue_out <= BG_BLUE;
           state <= PIXEL_DONE;
         end else begin
-          ray_steps <= ray_steps + 1;
+          ray_x <= ray_x + mult(dir_x, sdf_out);
+          ray_y <= ray_y + mult(dir_y, sdf_out);
+          ray_z <= ray_z + mult(dir_z, sdf_out);
+          ray_dist <= ray_dist + sdf_out;
+          state <= MARCHING2;
+        end
+      end else if (state == MARCHING2) begin
+        if(abs(ray_x) + abs(ray_y) + abs(ray_z) > MAX_DIST_MANHATTEN) begin
+          red_out <= BG_RED;
+          green_out <= BG_GREEN;
+          blue_out <= BG_BLUE;
+          // blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
+          state <= PIXEL_DONE;
+        end else begin
+          // domain repeptition =========================
+          // if(ray_x > to_fixed(25)) begin
+          //   ray_x <= ray_x - to_fixed(50);
+          // end else if(ray_x < -to_fixed(25)) begin
+          //   ray_x <= ray_x + to_fixed(50);
+          // end
+          // if(ray_y > to_fixed(25)) begin
+          //   ray_y <= ray_y - to_fixed(50);
+          // end else if(ray_y < -to_fixed(25)) begin
+          //   ray_y <= ray_y + to_fixed(50);
+          // end
+          // if(ray_z > to_fixed(50)) begin
+          //   ray_z <= ray_z - to_fixed(100);
+          // end else if(ray_z < -to_fixed(50)) begin
+          //   ray_z <= ray_z + to_fixed(100);
+          // end
+          // ===========================================
 
+          ray_steps <= ray_steps + 1;
+          sdf_start <= 1;
           state <= AWAITING_SDF;
         end
-      end  
+      end else if (state == CALC_NORMAL) begin
+        if(~sdf_start && sdf_done) begin 
+          if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
+            // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
+            state <= PIXEL_DONE;
+            red_out <= 8'h00;
+            green_out <= 8'hFF;
+            blue_out <= 8'hFF;
+            // red_out <= BG_RED;
+            // green_out <= BG_GREEN;
+            // blue_out <= BG_BLUE;
+          end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
+            ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
+            ray_x <= ray_x - NORMAL_EPS;
+            ray_y <= ray_y + NORMAL_EPS;
+            sdf_start <= 1;
+          end else if (ray_gen_in_y == UNCALCULATED_NORMAL_VALUE) begin
+            ray_gen_in_y <= (sdf_out - normal_base_dist) <<< 4;
+            ray_y <= ray_y - NORMAL_EPS;
+            ray_z <= ray_z + NORMAL_EPS;
+            sdf_start <= 1;
+          end else if (ray_gen_in_z == UNCALCULATED_NORMAL_VALUE) begin
+            ray_gen_in_z <= (sdf_out - normal_base_dist) <<< 4;
+            ray_gen_start <= 1;
+            state <= SHADING;
+          end
+        end else begin
+          sdf_start <= 0;
+        end
+      end else if (state == SHADING) begin
+        ray_gen_start <= 0;
+        if(~ray_gen_start && ray_gen_done) begin
+          light_fac <= mult(
+                        (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1,
+                        to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1))
+                      );
+          state <= SHADING2;
+        end
+      end else if (state == SHADING2) begin
+        // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
+        red_out <= clamp_color((mult((ray_gen_out_x + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        green_out <= clamp_color((mult((ray_gen_out_y + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        blue_out <= clamp_color((mult((ray_gen_out_z + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
+        // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
+        // blue_out <= clamp_color((mult(to_fixed(blue_out), light_fac >> 1)) >>> FIXED);
+        // red_out <= 255 - (ray_dist >> FIXED);
+        // green_out <= 255 - (ray_dist >> FIXED);
+        // blue_out <= 255 - (ray_dist >> FIXED);
+        // red_out <= BG_RED;
+        // green_out <= BG_GREEN;
+        // blue_out <= BG_BLUE;
+        state <= PIXEL_DONE;
+      end
     end
   end
 endmodule
@@ -247,22 +336,36 @@ module sdf (
   input wire signed [BITS-1:0] x,
   input wire signed [BITS-1:0] y,
   input wire signed [BITS-1:0] z,
+  input wire [31:0] timer,
   output logic sdf_done,
   output logic signed [BITS-1:0] sdf_out,
   output logic [7:0] sdf_red_out,
   output logic [7:0] sdf_green_out,
   output logic [7:0] sdf_blue_out
 );
-  typedef enum {IDLE=0, PROCESSING=1, DONE=2} sdf_state;
+  typedef enum {IDLE=0, PROCESSING=1, DONE=2, SQUARE=3} sdf_state;
   sdf_state state;
 
   logic signed [BITS-1:0] sphere_1_dist_squared;
   logic signed [BITS-1:0] sphere_2_dist_squared;
+  logic signed [BITS-1:0] sphere_3_dist_squared;
   logic sphere_1_sqrt_done;
   logic sphere_2_sqrt_done;
+  logic sphere_3_sqrt_done;
   logic signed [BITS-1:0] sphere_1_dist;
   logic signed [BITS-1:0] sphere_2_dist;
+  logic signed [BITS-1:0] sphere_3_dist;
   logic sqrt_start;
+
+  logic signed [BITS-1:0] tmp_x_1;
+  logic signed [BITS-1:0] tmp_y_1;
+  logic signed [BITS-1:0] tmp_z_1;
+  logic signed [BITS-1:0] tmp_x_2;
+  logic signed [BITS-1:0] tmp_y_2;
+  logic signed [BITS-1:0] tmp_z_2;
+  logic signed [BITS-1:0] tmp_x_3;
+  logic signed [BITS-1:0] tmp_y_3;
+  logic signed [BITS-1:0] tmp_z_3;
 
   always_comb begin
     sdf_done = state == DONE;
@@ -290,45 +393,63 @@ module sdf (
     .valid(sphere_2_sqrt_done)
   );
 
+  sqrt #(
+    .WIDTH(BITS),
+    .FBITS(FIXED)
+  ) sqrt_inst3 (
+    .clk(clk_in),
+    .start(sqrt_start),
+    .rad(sphere_3_dist_squared),
+    .root(sphere_3_dist),
+    .valid(sphere_3_sqrt_done)
+  );
+
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
       state <= IDLE;
       sqrt_start <= 0;
     end else begin
       if (state == IDLE) begin
-        
         if(sdf_start) begin
-          sqrt_start <= 1;
-
-          sphere_1_dist_squared <= square_mag(x, y - to_fixed(32), z - to_fixed(150));
-          sphere_2_dist_squared <= square_mag(x, y + to_fixed(32), z - to_fixed(150));
-          $display("sdf started with %d %d %d", $signed(x >> FIXED), $signed(y >> FIXED), $signed(z >> FIXED));
-          // $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
-          // $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
-          state <= PROCESSING;
+          tmp_x_1 <= x + to_fixed(timer[3:0]) - to_fixed(8);
+          tmp_y_1 <= y - to_fixed(7);
+          tmp_z_1 <= z - to_fixed(50);
+          tmp_x_2 <= x;
+          tmp_y_2 <= y + to_fixed(7);
+          tmp_z_2 <= z - to_fixed(50);
+          tmp_x_3 <= x - to_fixed(16);
+          tmp_y_3 <= y;
+          tmp_z_3 <= z - to_fixed(60) + to_fixed(timer[3:0]);
+          state <= SQUARE;
         end
+      end else if(state == SQUARE) begin
+        sqrt_start <= 1;
+        sphere_1_dist_squared <= square_mag(tmp_x_1, tmp_y_1, tmp_z_1);
+        sphere_2_dist_squared <= square_mag(tmp_x_2, tmp_y_2, tmp_z_2);
+        sphere_3_dist_squared <= square_mag(tmp_x_3, tmp_y_3, tmp_z_3);
+        state <= PROCESSING;
       end else if(state == PROCESSING) begin
         if(sqrt_start) begin
-          $display("PROC");
           sqrt_start <= 0;
-          // else below because the done signals are still 1 the frame after it is started? Idk why, but this fixed it.
-        end else if(sphere_1_sqrt_done && sphere_2_sqrt_done) begin
-          $display("sphere_1_dist_squared %d", $signed(square_mag(x, y - to_fixed(32), z - to_fixed(150)) >> FIXED));
-          // $display("sphere_2_dist_squared %d", $signed(square_mag(x, y + to_fixed(32), z - to_fixed(150)) >> FIXED));
-          // $display("sphere 1 dist from sphere %d", $signed(sphere_1_dist - to_fixed(64) >> FIXED));
-          // $display("sphere 2 dist from sphere %d", $signed(sphere_2_dist - to_fixed(64) >> FIXED));
-          // $display("signed min %d", $signed(signed_minimum(
-          //   (sphere_1_dist - to_fixed(64)), 
-          //   (sphere_2_dist - to_fixed(64))
-          // ) >> FIXED));
-          sdf_out <= signed_minimum(
-            (sphere_1_dist - to_fixed(64)), 
-            (sphere_2_dist - to_fixed(64))
+        end else if(sphere_1_sqrt_done && sphere_2_sqrt_done && sphere_3_sqrt_done) begin
+          sdf_out <= signed_minimum(signed_minimum(
+            (sphere_1_dist - to_fixed(10)), 
+            (sphere_2_dist - to_fixed(10))),
+            (sphere_3_dist - to_fixed(16))
           );
-          sdf_red_out <= clamp_color(sphere_1_dist >> FIXED << 1);
-          sdf_green_out <= clamp_color(sphere_2_dist >> FIXED << 1);
-          sdf_blue_out <= 8'h00;
-
+          if(sphere_1_dist < sphere_2_dist && sphere_1_dist < sphere_3_dist - to_fixed(6)) begin
+            sdf_red_out <= 8'hF0;
+            sdf_green_out <= 8'h00;
+            sdf_blue_out <= 8'hF0;
+          end else if (sphere_2_dist < sphere_3_dist - to_fixed(6)) begin
+            sdf_red_out <= 8'h00;
+            sdf_green_out <= 8'hF0;
+            sdf_blue_out <= 8'h00;
+          end else begin
+            sdf_red_out <= 8'h00;
+            sdf_green_out <= 8'h00;
+            sdf_blue_out <= 8'hF0;
+          end
           state <= DONE;
         end
       end else if (state == DONE) begin
@@ -337,46 +458,6 @@ module sdf (
     end
   end
 endmodule
-
-// module sdfquick (
-//   input wire clk_in,
-//   input wire rst_in,
-//   input wire sdf_start,
-//   input wire signed [BITS-1:0] x,
-//   input wire signed [BITS-1:0] y,
-//   input wire signed [BITS-1:0] z,
-//   output logic sdf_done,
-//   output logic signed [BITS-1:0] sdf_out,
-//   output logic [7:0] sdf_red_out,
-//   output logic [7:0] sdf_green_out,
-//   output logic [7:0] sdf_blue_out
-// );
-//   typedef enum {IDLE=0, PROCESSING=1, DONE=2} sdf_state;
-//   sdf_state state;
-
-//   always_comb begin
-//     sdf_done = state == DONE;
-//   end
-
-//   always_ff @(posedge clk_in) begin
-//     if(rst_in) begin
-//       state <= IDLE;
-//     end else begin
-//       if (state == IDLE) begin
-//         if(sdf_start) begin
-//           //cube sdf
-//           sdf_out <= ;
-//           sdf_red_out <= clamp_color(sdf_out >> FIXED << 1);
-//           sdf_green_out <= clamp_color(sdf_out >> FIXED << 1);
-//           sdf_blue_out <= 8'h00;
-//           state <= DONE;
-//         end
-//       end else if (state == DONE) begin
-//         state <= IDLE;
-//       end
-//     end
-//   end
-// endmodule
 
 module ray_gen (
   input wire clk_in,
@@ -393,20 +474,19 @@ module ray_gen (
 
   logic signed [BITS-1:0] norm;
   logic signed [BITS-1:0] sqrt_in;
-  logic processing;
   logic div_start;
   logic div_x_done;
   logic div_y_done;
   logic div_z_done;
-  logic div_x_set;
-  logic div_y_set;
-  logic div_z_set;
   logic signed [BITS-1:0] div_x_out;
   logic signed [BITS-1:0] div_y_out;
   logic signed [BITS-1:0] div_z_out;
   logic sqrt_start;
   logic sqrt_done;
   logic signed [BITS-1:0] sqrt_out;
+
+  typedef enum {IDLE=0, CALC_NORMAL=1, DIVIDING=2} raygen_state;
+  raygen_state state;
 
   sqrt #(
     .WIDTH(BITS),
@@ -460,51 +540,39 @@ module ray_gen (
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
-      processing <= 0;
       ray_gen_done <= 0;
       sqrt_start <= 0;
       div_start <= 0;
+      state <= IDLE;
     end else begin
-      if(ray_gen_start && !processing) begin
-        processing <= 1;
-        sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
-        // $display("xin %h", ray_gen_in_x);
-        // $display("yin %h", ray_gen_in_y);
-        // $display("zin %h", ray_gen_in_z);
-        // $display("sqrt_in %h", square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z));
-        sqrt_start <= 1;
-        ray_gen_done <= 0;
-      end else begin
-        sqrt_start <= 0;
-
-        if(sqrt_done) begin
-          norm <= sqrt_out;
-          div_start <= 1;
-          div_x_set <= 0;
-          div_y_set <= 0;
-          div_z_set <= 0;
-        end else begin 
+      case(state)
+        IDLE: begin
+          if(ray_gen_start) begin
+            sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
+            sqrt_start <= 1;
+            ray_gen_done <= 0;
+            state <= CALC_NORMAL;
+          end
+        end
+        CALC_NORMAL: begin
+          sqrt_start <= 0;
+          if(~sqrt_start && sqrt_done) begin
+            norm <= sqrt_out;
+            div_start <= 1;
+            state <= DIVIDING;
+          end
+        end
+        DIVIDING: begin
           div_start <= 0;
+          if(~div_start && div_x_done && div_y_done && div_z_done) begin
+            ray_gen_out_x <= div_x_out;
+            ray_gen_out_y <= div_y_out;
+            ray_gen_out_z <= div_z_out;
+            ray_gen_done <= 1;
+            state <= IDLE;
+          end
         end
-
-        if(div_x_done) begin
-          ray_gen_out_x <= div_x_out;
-          div_x_set <= 1;
-        end 
-        if(div_y_done) begin
-          ray_gen_out_y <= div_y_out;
-          div_y_set <= 1;
-        end 
-        if(div_z_done) begin
-          ray_gen_out_z <= div_z_out;
-          div_z_set <= 1;
-        end 
-
-        if(div_x_set && div_y_set && div_z_set) begin
-          processing <= 0;
-          ray_gen_done <= 1;
-        end
-      end
+      endcase
     end
   end
 endmodule

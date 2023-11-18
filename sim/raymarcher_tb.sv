@@ -19,8 +19,8 @@ module tb;
     logic signed [23:0] c;
 
     raymarcher #(
-      .WIDTH(300),
-      .HEIGHT(300)
+      .WIDTH(320),
+      .HEIGHT(180)
     ) raym (
       .clk_in(clk_in),
       .rst_in(rst_in),
@@ -31,11 +31,24 @@ module tb;
       .blue_out(blue_out),
       .pixel_done(pixel_done),
       .out_x(x_out),
-      .out_y(y_out)
+      .out_y(y_out),
+      // ====================================
+    .camera_x(to_fixed(30)),
+    .camera_y(to_fixed(0)),
+    .camera_z(to_fixed(0)),
+    .camera_u_x(to_fixed(1)),
+    .camera_u_y(to_fixed(0)),
+    .camera_u_z(to_fixed(1)),
+    .camera_v_x(to_fixed(0)),
+    .camera_v_y(to_fixed(1)),
+    .camera_v_z(to_fixed(0)),
+    .camera_forward_x(to_fixed(-100)),
+    .camera_forward_y(to_fixed(0)),
+    .camera_forward_z(to_fixed(100))
     );
 
     always begin
-        #5;  //every 5 ns switch...so period of clock is 10 ns...100 MHz clock
+        #15;  //every 5 ns switch...so period of clock is 10 ns...100 MHz clock
         clk_in = !clk_in;
     end
 
@@ -46,44 +59,26 @@ module tb;
         $display("Starting Sim"); //print nice message
         clk_in = 0; //initialize clk (super important)
         rst_in = 0; //initialize rst (super important)
-        x_in = 200;
-        y_in = 150;
-        #10  //wait a little bit of time at beginning
+        x_in = 0;
+        y_in = 100;
+        #30  //wait a little bit of time at beginning
         rst_in = 1; //reset system
-        #10; //hold high for a few clock cycles
+        #30; //hold high for a few clock cycles
         rst_in=0;
-        #10;
-        // a = dec_to_24_8(3);
-        // b = dec_to_24_8(-1);
-        // $display("a = %h", a);
-        // $display("b = %h", b);
-        // a = mult_24_8(a, b);
-        // $display("prod = %h", a);
-        // a = dec_to_24_8(3);
-        // b = dec_to_24_8(4);
-        // c = dec_to_24_8(0);
-        // // a = mult_24_8(a, a);
-        // // b = mult_24_8(b, b);
-        // $display("a^2 = %h", mult_24_8(a, a));
-        // $display("b^2 = %h", mult_24_8(b, b));
-        // $display("c^2 = %h", mult_24_8(c, c));
-        // $display("magsq 3,4,0 = %h", square_mag(a,b,c));
-        
-        #10;
-
-
-
+        #30;
         while(!pixel_done)begin
-          // x_in = 100;
-          // $display("i = %d", i);
-          // $display("ray steps = %d", ray_steps);
-          // $display("pixel_done = %d", pixel_done);
-          #10;
+          #30;
         end
-        // $display("pixel_done = %d", pixel_done);
-        // $display("x out = %d", x_out);
-        // $display("y out = %d", y_out);
-        #10
+        $display("rgb out = %d, %d, %d", red_out, green_out, blue_out);
+        // for(y_in = 40; y_in < 47 * 3; y_in += 1) begin
+        //   $display("y_in = %d", y_in);
+        //   while(!pixel_done)begin
+        //     #30;
+        //   end
+        //   $display("rgb out = %d, %d, %d", red_out, green_out, blue_out);
+        //   #30;
+        // end
+        #30
         $display("Finishing Sim"); //print nice message
         $finish;
 

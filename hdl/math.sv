@@ -4,7 +4,7 @@
 //https://projectf.io/posts/square-root-in-verilog/
 module sqrt #(
     parameter WIDTH=32,  // width of radicand
-    parameter FBITS=8   // fractional bits (for fixed point)
+    parameter FBITS=16   // fractional bits (for fixed point)
     ) (
     input wire logic clk,
     input wire logic start,             // start signal
@@ -60,7 +60,7 @@ endmodule
 //https://projectf.io/posts/division-in-verilog/
 module div #(
     parameter WIDTH=32,  // width of numbers in bits (integer and fractional)
-    parameter FBITS=8   // fractional bits within WIDTH
+    parameter FBITS=16   // fractional bits within WIDTH
     ) (
     input wire logic clk,    // clock
     input wire logic rst,    // reset
@@ -106,7 +106,6 @@ module div #(
     // calculation state machine
     enum {IDLE, INIT, CALC, ROUND, SIGN} state;
     always_ff @(posedge clk) begin
-        done <= 0;
         case (state)
             INIT: begin
                 state <= CALC;
@@ -136,13 +135,16 @@ module div #(
             end
             SIGN: begin  // adjust quotient sign if non-zero and input signs differ
                 state <= IDLE;
-                if (quo != 0) val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
+                // if (quo != 0) val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
+                // CHANGED FROM THE COPIED CODE - NO IDEA WHY THAT ONE DOESNT SET THE VALUE IF ITS 0
+                val <= (sig_diff) ? {1'b1, -quo} : {1'b0, quo};
                 busy <= 0;
                 done <= 1;
                 valid <= 1;
             end
             default: begin  // IDLE
                 if (start) begin
+                    $display("start %d / %d", a>>>16, b>>>16);
                     valid <= 0;
                     if (b == 0) begin  // divide by zero
                         state <= IDLE;

@@ -25,23 +25,30 @@ module renderer
   logic [7:0] pixel_red;
   logic [7:0] pixel_green;
   logic [7:0] pixel_blue;
+  logic [31:0] timer;
+
+  // logic clk_half;
+  // always_ff @(posedge clk_in) begin
+  //   clk_half <= ~clk_half;
+  // end 
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
       curr_x <= 0;
       curr_y <= 0;
-    end else begin
-      if(pixel_done) begin
-        $display("pixel_done");
-        $display("frame_addr: %d", frame_addr);
-        $display("image_addr: %d", img_addr);
-        $display("curr_x: %d", curr_x);
-        $display("curr_y: %d", curr_y);
-        curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
-        curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
-      end
+      timer <= 0;
+    end else if(pixel_done) begin
+      // $display("pixel_done");
+      // $display("frame_addr: %d", frame_addr);
+      // $display("image_addr: %d", img_addr);
+      // $display("curr_x: %d", curr_x);
+      // $display("curr_y: %d", curr_y);
+      curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
+      curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
+      timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
     end
   end
+
 
   raymarcher #(
     .WIDTH(WIDTH),
@@ -51,12 +58,26 @@ module renderer
     .rst_in(rst_in),
     .curr_x(curr_x),
     .curr_y(curr_y),
+    .timer(timer),
     .pixel_done(pixel_done),
     .red_out(pixel_red),
     .green_out(pixel_green),
     .blue_out(pixel_blue),
     .out_x(ray_out_x),
-    .out_y(ray_out_y)
+    .out_y(ray_out_y),
+    // ====================================
+    .camera_x(to_fixed(0)),
+    .camera_y(to_fixed(0)),
+    .camera_z(to_fixed(0)),
+    .camera_u_x(to_fixed(1)),
+    .camera_u_y(to_fixed(0)),
+    .camera_u_z(to_fixed(0)),
+    .camera_v_x(to_fixed(0)),
+    .camera_v_y(to_fixed(1)),
+    .camera_v_z(to_fixed(0)),
+    .camera_forward_x(to_fixed(0)),
+    .camera_forward_y(to_fixed(0)),
+    .camera_forward_z(to_fixed(150))
   );
 
   logic in_frame;

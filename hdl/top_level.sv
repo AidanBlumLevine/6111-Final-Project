@@ -57,13 +57,13 @@ module top_level(
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
   renderer #(
-    .WIDTH(300),
-    .HEIGHT(300)
+    .WIDTH(320),
+    .HEIGHT(180)
   ) mrender (
     .clk_in(clk_pixel),
     .rst_in(sys_rst),
-    .hcount_in(hcount),
-    .vcount_in(vcount),
+    .hcount_in(hcount >> 2),
+    .vcount_in(vcount >> 2),
     .red_out(red),
     .green_out(green),
     .blue_out(blue)
