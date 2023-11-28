@@ -18,21 +18,21 @@ div divide1 (
     .clk(clk_100mhz),
     .a(gx),
     .b(10),
-    .q(dRoll)
+    .val(dRoll)
     );
 
 div divide2 (
     .clk(clk_100mhz),
     .a(gy),
     .b(10),
-    .q(dPitch)
+    .val(dPitch)
     );
 
 div divide3 (
     .clk(clk_100mhz),
     .a(gz),
     .b(10),
-    .q(dYaw)
+    .val(dYaw)
     );
 
 always_ff @(posedge clk_100mhz) begin 
@@ -44,7 +44,7 @@ always_ff @(posedge clk_100mhz) begin
     roll <= 0;
     yaw <= 0;
     ready <= 0;
-  end else begin 
+  end else begin  
     curPitch <= pitch;
     curRoll <= roll;
     curYaw <= yaw;
