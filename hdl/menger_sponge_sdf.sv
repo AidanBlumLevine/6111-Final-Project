@@ -159,14 +159,13 @@ module sdf (
   input wire signed [BITS-1:0] x,
   input wire signed [BITS-1:0] y,
   input wire signed [BITS-1:0] z,
-  input wire [31:0] timer,
   output logic sdf_done,
   output logic signed [BITS-1:0] sdf_out,
   output logic [7:0] sdf_red_out,
   output logic [7:0] sdf_green_out,
   output logic [7:0] sdf_blue_out
 );
-  typedef enum {IDLE=0, TRANS=1, DIV=2, INIT_Q=3, LEN_Q=4, SDF_BOX=5} sdf_state;
+  typedef enum {IDLE=0, TRANS=1, DIV=2, INIT_Q=3, LEN_Q=4, SDF_BOX=5, FINAL_DIV=6, DONE=7} sdf_state;
   sdf_state state;
   logic vec3 p;
   logic [BITS-1:0] scale;
