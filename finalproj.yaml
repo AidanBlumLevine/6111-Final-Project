@@ -1,0 +1,14 @@
+---
+cores:
+
+  lab8_io_core:
+    type: io
+
+    inputs:
+      gx: 32
+      gy: 32
+      gz: 32
+uart:
+  port: "/dev/cu.usbserial-8874292302D21"
+  baudrate: 3000000
+  clock_freq: 100000000
