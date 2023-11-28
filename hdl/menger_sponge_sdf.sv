@@ -162,6 +162,9 @@ module sdf (
   input wire [31:0] timer,
   output logic sdf_done,
   output logic signed [BITS-1:0] sdf_out,
+  output logic [7:0] sdf_red_out,
+  output logic [7:0] sdf_green_out,
+  output logic [7:0] sdf_blue_out
 );
   typedef enum {IDLE=0, TRANS=1, DIV=2, INIT_Q=3, LEN_Q=4, SDF_BOX=5} sdf_state;
   sdf_state state;
@@ -227,6 +230,10 @@ module sdf (
     .done(div_b_done),
     .val(div_b_out)
   );
+
+  assign sdf_red_out <= 8'hF0;
+  assign sdf_green_out <= 8'h00;
+  assign sdf_blue_out <= 8'h00;
   
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
