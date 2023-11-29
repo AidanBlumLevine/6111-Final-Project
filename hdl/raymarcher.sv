@@ -101,15 +101,14 @@ module raymarcher
   input wire signed [BITS-1:0] camera_forward_y,
   input wire signed [BITS-1:0] camera_forward_z,
   // ========================================
+  input wire start_in,
   input wire [31:0] timer,
-  output logic [7:0] red_out,
-  output logic [7:0] green_out,
-  output logic [7:0] blue_out,
+  output logic [23:0] color_out,
   output logic [$clog2(WIDTH)-1:0] out_x,
   output logic [$clog2(HEIGHT)-1:0] out_y,
   output logic pixel_done
 );
-  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING1=4, MARCHING2=5, CALC_NORMAL=6, SHADING=7, SHADING2} raymarcher_state;
+  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING1=4, MARCHING2=5, CALC_NORMAL=6, SHADING=7, SHADING2=8} raymarcher_state;
   raymarcher_state state;
   always_comb begin
     pixel_done = state == PIXEL_DONE;
@@ -181,7 +180,7 @@ module raymarcher
     if(rst_in) begin
       state <= PIXEL_DONE;
     end else begin
-      if(state == PIXEL_DONE) begin
+      if(state == PIXEL_DONE && start_in) begin
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
         ray_gen_in_x <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_x) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_x) + camera_forward_x;
@@ -210,9 +209,7 @@ module raymarcher
         if (sdf_done) begin
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             normal_base_dist <= sdf_out;
-            red_out <= sdf_red_out;
-            green_out <= sdf_green_out;
-            blue_out <= sdf_blue_out;
+            color_out <= {sdf_red_out, sdf_green_out, sdf_blue_out};
             ray_gen_in_x <= UNCALCULATED_NORMAL_VALUE;
             ray_gen_in_y <= UNCALCULATED_NORMAL_VALUE;
             ray_gen_in_z <= UNCALCULATED_NORMAL_VALUE;
@@ -225,12 +222,8 @@ module raymarcher
         end
       end else if (state == MARCHING1) begin
         if(ray_steps > MAX_STEPS) begin
-          red_out <= 8'hFF;
-          green_out <= 8'h00;
-          blue_out <= 8'hFF;
-          // red_out <= BG_RED;
-          // green_out <= BG_GREEN;
-          // blue_out <= BG_BLUE;
+          color_out <= {8'hFF, 8'h00, 8'hFF};
+          // color_out <= {BG_RED, BG_GREEN, BG_BLUE};
           state <= PIXEL_DONE;
         end else begin
           ray_x <= ray_x + mult(dir_x, sdf_out);
@@ -241,10 +234,7 @@ module raymarcher
         end
       end else if (state == MARCHING2) begin
         if(abs(ray_x) + abs(ray_y) + abs(ray_z) > MAX_DIST_MANHATTEN) begin
-          red_out <= BG_RED;
-          green_out <= BG_GREEN;
-          blue_out <= BG_BLUE;
-          // blue_out <= out_x[4] ^ out_y[4] ? 8'hFF : 8'h00;
+          color_out <= {BG_RED, BG_GREEN, BG_BLUE};
           state <= PIXEL_DONE;
         end else begin
           // domain repeptition =========================
@@ -274,12 +264,7 @@ module raymarcher
           if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
-            red_out <= 8'h00;
-            green_out <= 8'hFF;
-            blue_out <= 8'hFF;
-            // red_out <= BG_RED;
-            // green_out <= BG_GREEN;
-            // blue_out <= BG_BLUE;
+            color_out <= {8'h00, 8'hFF, 8'hFF};
           end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
             ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
             ray_x <= ray_x - NORMAL_EPS;
@@ -311,9 +296,10 @@ module raymarcher
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        red_out <= clamp_color((mult((ray_gen_out_x + to_fixed(1)) << 7, light_fac)) >>> FIXED);
-        green_out <= clamp_color((mult((ray_gen_out_y + to_fixed(1)) << 7, light_fac)) >>> FIXED);
-        blue_out <= clamp_color((mult((ray_gen_out_z + to_fixed(1)) << 7, light_fac)) >>> FIXED);
+        color_out <= {clamp_color((mult((ray_gen_out_x + to_fixed(1)) << 7, light_fac)) >>> FIXED),
+                      clamp_color((mult((ray_gen_out_y + to_fixed(1)) << 7, light_fac)) >>> FIXED),
+                      clamp_color((mult((ray_gen_out_z + to_fixed(1)) << 7, light_fac)) >>> FIXED)};
+
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
         // blue_out <= clamp_color((mult(to_fixed(blue_out), light_fac >> 1)) >>> FIXED);
@@ -472,23 +458,16 @@ module ray_gen (
   input wire signed [BITS-1:0] ray_gen_in_z
 );
 
-  logic signed [BITS-1:0] norm;
   logic signed [BITS-1:0] sqrt_in;
-  logic div_start;
-  logic div_x_done;
-  logic div_y_done;
-  logic div_z_done;
-  logic signed [BITS-1:0] div_x_out;
-  logic signed [BITS-1:0] div_y_out;
-  logic signed [BITS-1:0] div_z_out;
   logic sqrt_start;
   logic sqrt_done;
   logic signed [BITS-1:0] sqrt_out;
 
-  typedef enum {IDLE=0, CALC_NORMAL=1, DIVIDING=2} raygen_state;
+  typedef enum {IDLE=0, COMPUTE=1} raygen_state;
   raygen_state state;
 
-  sqrt #(
+  // Instantiate the inv_sqrt module
+  inv_sqrt #(
     .WIDTH(BITS),
     .FBITS(FIXED)
   ) sqrt_inst (
@@ -499,75 +478,27 @@ module ray_gen (
     .valid(sqrt_done)
   );
 
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) divx (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_start),
-    .a(ray_gen_in_x),
-    .b(norm),
-    .done(div_x_done),
-    .val(div_x_out)
-  );
-
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) divy (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_start),
-    .a(ray_gen_in_y),
-    .b(norm),
-    .done(div_y_done),
-    .val(div_y_out)
-  );
-
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) divz (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_start),
-    .a(ray_gen_in_z),
-    .b(norm),
-    .done(div_z_done),
-    .val(div_z_out)
-  );
-
   always_ff @(posedge clk_in) begin
-    if(rst_in) begin
+    if (rst_in) begin
       ray_gen_done <= 0;
       sqrt_start <= 0;
-      div_start <= 0;
       state <= IDLE;
     end else begin
-      case(state)
+      case (state)
         IDLE: begin
-          if(ray_gen_start) begin
+          if (ray_gen_start) begin
             sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
             sqrt_start <= 1;
             ray_gen_done <= 0;
-            state <= CALC_NORMAL;
+            state <= COMPUTE;
           end
         end
-        CALC_NORMAL: begin
+        COMPUTE: begin
           sqrt_start <= 0;
-          if(~sqrt_start && sqrt_done) begin
-            norm <= sqrt_out;
-            div_start <= 1;
-            state <= DIVIDING;
-          end
-        end
-        DIVIDING: begin
-          div_start <= 0;
-          if(~div_start && div_x_done && div_y_done && div_z_done) begin
-            ray_gen_out_x <= div_x_out;
-            ray_gen_out_y <= div_y_out;
-            ray_gen_out_z <= div_z_out;
+          if (~sqrt_start && sqrt_done) begin
+            ray_gen_out_x <= mult(ray_gen_in_x, sqrt_out);
+            ray_gen_out_y <= mult(ray_gen_in_y, sqrt_out);
+            ray_gen_out_z <= mult(ray_gen_in_z, sqrt_out);
             ray_gen_done <= 1;
             state <= IDLE;
           end
@@ -576,5 +507,123 @@ module ray_gen (
     end
   end
 endmodule
+
+// module ray_gen (
+//   input wire clk_in,
+//   input wire rst_in,
+//   input wire ray_gen_start,
+//   output logic ray_gen_done,
+//   output logic signed [BITS-1:0] ray_gen_out_x,
+//   output logic signed [BITS-1:0] ray_gen_out_y,
+//   output logic signed [BITS-1:0] ray_gen_out_z,
+//   input wire signed [BITS-1:0] ray_gen_in_x,
+//   input wire signed [BITS-1:0] ray_gen_in_y,
+//   input wire signed [BITS-1:0] ray_gen_in_z
+// );
+
+//   logic signed [BITS-1:0] norm;
+//   logic signed [BITS-1:0] sqrt_in;
+//   logic div_start;
+//   logic div_x_done;
+//   logic div_y_done;
+//   logic div_z_done;
+//   logic signed [BITS-1:0] div_x_out;
+//   logic signed [BITS-1:0] div_y_out;
+//   logic signed [BITS-1:0] div_z_out;
+//   logic sqrt_start;
+//   logic sqrt_done;
+//   logic signed [BITS-1:0] sqrt_out;
+
+//   typedef enum {IDLE=0, CALC_NORMAL=1, DIVIDING=2} raygen_state;
+//   raygen_state state;
+
+//   sqrt #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) sqrt_inst (
+//     .clk(clk_in),
+//     .start(sqrt_start),
+//     .rad(sqrt_in),
+//     .root(sqrt_out),
+//     .valid(sqrt_done)
+//   );
+
+//   div #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) divx (
+//     .clk(clk_in),
+//     .rst(rst_in),
+//     .start(div_start),
+//     .a(ray_gen_in_x),
+//     .b(norm),
+//     .done(div_x_done),
+//     .val(div_x_out)
+//   );
+
+//   div #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) divy (
+//     .clk(clk_in),
+//     .rst(rst_in),
+//     .start(div_start),
+//     .a(ray_gen_in_y),
+//     .b(norm),
+//     .done(div_y_done),
+//     .val(div_y_out)
+//   );
+
+//   div #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) divz (
+//     .clk(clk_in),
+//     .rst(rst_in),
+//     .start(div_start),
+//     .a(ray_gen_in_z),
+//     .b(norm),
+//     .done(div_z_done),
+//     .val(div_z_out)
+//   );
+
+//   always_ff @(posedge clk_in) begin
+//     if(rst_in) begin
+//       ray_gen_done <= 0;
+//       sqrt_start <= 0;
+//       div_start <= 0;
+//       state <= IDLE;
+//     end else begin
+//       case(state)
+//         IDLE: begin
+//           if(ray_gen_start) begin
+//             sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
+//             sqrt_start <= 1;
+//             ray_gen_done <= 0;
+//             state <= CALC_NORMAL;
+//           end
+//         end
+//         CALC_NORMAL: begin
+//           sqrt_start <= 0;
+//           if(~sqrt_start && sqrt_done) begin
+//             norm <= sqrt_out;
+//             div_start <= 1;
+//             state <= DIVIDING;
+//           end
+//         end
+//         DIVIDING: begin
+//           div_start <= 0;
+//           if(~div_start && div_x_done && div_y_done && div_z_done) begin
+//             ray_gen_out_x <= div_x_out;
+//             ray_gen_out_y <= div_y_out;
+//             ray_gen_out_z <= div_z_out;
+//             ray_gen_done <= 1;
+//             state <= IDLE;
+//           end
+//         end
+//       endcase
+//     end
+//   end
+// endmodule
 
 `default_nettype wire

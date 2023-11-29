@@ -53,9 +53,9 @@ module tb;
         while(!done) begin
             #1;
         end
-        $display("x_out = %d/8", x_out >> 12);
-        $display("y_out = %d/8", y_out >> 12);
-        $display("z_out = %d/8", z_out >> 12);
+        $display("x_out = %d/16", x_out >> 12);
+        $display("y_out = %d/16", y_out >> 12);
+        $display("z_out = %d/16", z_out >> 12);
 
 
         start = 1;
@@ -67,9 +67,9 @@ module tb;
         while(!done) begin
             #1;
         end
-        $display("x_out = %d/8", x_out >> 12);
-        $display("y_out = %d/8", y_out >> 12);
-        $display("z_out = %d/8", z_out >> 12);
+        $display("x_out = %d/16", x_out >> 12);
+        $display("y_out = %d/16", y_out >> 12);
+        $display("z_out = %d/16", z_out >> 12);
 
         start = 1;
         x_in = 1 << 16;
@@ -80,9 +80,9 @@ module tb;
         while(!done) begin
             #1;
         end
-        $display("x_out = %d/8", x_out >> 12);
-        $display("y_out = %d/8", y_out >> 12);
-        $display("z_out = %d/8", z_out >> 12);
+        $display("x_out = %d/16", x_out >> 12);
+        $display("y_out = %d/16", y_out >> 12);
+        $display("z_out = %d/16", z_out >> 12);
 
         #10
         $display("Finishing Sim"); //print nice message
