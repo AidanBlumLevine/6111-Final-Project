@@ -52,7 +52,7 @@ module sine(input wire [8:0] value, input wire clk_in, input wire rst_in, output
         end 
         1'b1: begin 
           if (negate) begin 
-            amp_out <= ~amp_out_intermediate;
+            amp_out <= mult(-1, amp_out_intermediate);
           end else begin 
             amp_out <= amp_out_intermediate;
           end 
