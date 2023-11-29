@@ -57,6 +57,48 @@ module sqrt #(
     end
 endmodule
 
+`timescale 1ns / 1ps
+`default_nettype none
+
+module quick_sqrt #(
+    parameter WIDTH=32,  // width of radicand
+    parameter FBITS=16   // fractional bits (for fixed point)
+) (
+    input wire logic clk,
+    input wire logic start,             // start signal
+    output logic busy,                 // calculation in progress
+    output logic valid,                // root and rem are valid
+    input wire logic [WIDTH-1:0] rad,   // radicand
+    output logic [WIDTH-1:0] root      // root
+);
+
+    logic [WIDTH-1:0] inv_sqrt_out;
+    logic [WIDTH-1:0] inv_sqrt_in;
+
+    inv_sqrt #(
+        .WIDTH(WIDTH),
+        .FBITS(FBITS)
+    ) inv_sqrt_inst (
+        .clk(clk),
+        .start(start),
+        .valid(),
+        .rad(rad),
+        .root(inv_sqrt_out)
+    );
+
+    always_ff @(posedge clk) begin
+        if (start) begin
+            busy <= 1;
+            valid <= 0;
+            inv_sqrt_in <= rad;
+        end else if (inv_sqrt_inst.valid) begin
+            busy <= 0;
+            valid <= 1;
+            root <= mult(inv_sqrt_out, inv_sqrt_in); // Multiply inv_sqrt result by radicand
+        end
+    end
+endmodule
+
 
 module inv_sqrt #(
     parameter WIDTH=32,  // width of radicand
@@ -109,7 +151,7 @@ module inv_sqrt #(
             else if (rad[2]) guess <= 32'h00800000;
             else if (rad[1]) guess <= 32'h00b504f3;
             else guess <= 32'h00200000;
-        end else if (iter < 4) begin
+        end else if (iter < 10) begin
             iter <= iter + 1;
             // Newton Raphson: g = g * (1.5 - .5 * c * g * g);
             guess <= mult(guess, one_point_five - mult(point_five, mult(rad, mult(guess, guess))));

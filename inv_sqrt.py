@@ -25,11 +25,11 @@ def generate_inverse_sqrt_table():
         estimate_y = 1 / (estimate_x ** .5)
         sqrt_in = f"sqrtIn[{i}]"
         sqrt_guess = float_to_fixed_point(estimate_y)
-        print(f"estimate_x: {estimate_x}\n, estimate_y: {estimate_y}\n, sqrt_guess: {sqrt_guess}\n")
-        table += f"\telse if ({sqrt_in}) sqrtFirstGuess = {sqrt_guess};\n"
+        # print(f"estimate_x: {estimate_x}\n, estimate_y: {estimate_y}\n, sqrt_guess: {sqrt_guess}\n")
+        table += f"\telse if ({sqrt_in}) guess = {sqrt_guess};\n"
     
     # Default case for sqrtIn[0]
-    table += f"\telse sqrtFirstGuess = 32'sh00200000;\n"
+    table += f"\telse guess = 32'sh00200000;\n"
 
     return table
 

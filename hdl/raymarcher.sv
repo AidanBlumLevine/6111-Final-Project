@@ -149,7 +149,7 @@ module raymarcher
   logic signed [BITS-1:0] ray_gen_in_x;
   logic signed [BITS-1:0] ray_gen_in_y;
   logic signed [BITS-1:0] ray_gen_in_z;
-  ray_gen ray_gen_inst (
+  ray_gen_quick ray_gen_inst (
     .clk_in(clk_in),
     .rst_in(rst_in),
     .ray_gen_start(ray_gen_start),
@@ -445,7 +445,7 @@ module sdf (
   end
 endmodule
 
-module ray_gen (
+module ray_gen_quick (
   input wire clk_in,
   input wire rst_in,
   input wire ray_gen_start,
@@ -508,122 +508,122 @@ module ray_gen (
   end
 endmodule
 
-// module ray_gen (
-//   input wire clk_in,
-//   input wire rst_in,
-//   input wire ray_gen_start,
-//   output logic ray_gen_done,
-//   output logic signed [BITS-1:0] ray_gen_out_x,
-//   output logic signed [BITS-1:0] ray_gen_out_y,
-//   output logic signed [BITS-1:0] ray_gen_out_z,
-//   input wire signed [BITS-1:0] ray_gen_in_x,
-//   input wire signed [BITS-1:0] ray_gen_in_y,
-//   input wire signed [BITS-1:0] ray_gen_in_z
-// );
+module ray_gen (
+  input wire clk_in,
+  input wire rst_in,
+  input wire ray_gen_start,
+  output logic ray_gen_done,
+  output logic signed [BITS-1:0] ray_gen_out_x,
+  output logic signed [BITS-1:0] ray_gen_out_y,
+  output logic signed [BITS-1:0] ray_gen_out_z,
+  input wire signed [BITS-1:0] ray_gen_in_x,
+  input wire signed [BITS-1:0] ray_gen_in_y,
+  input wire signed [BITS-1:0] ray_gen_in_z
+);
 
-//   logic signed [BITS-1:0] norm;
-//   logic signed [BITS-1:0] sqrt_in;
-//   logic div_start;
-//   logic div_x_done;
-//   logic div_y_done;
-//   logic div_z_done;
-//   logic signed [BITS-1:0] div_x_out;
-//   logic signed [BITS-1:0] div_y_out;
-//   logic signed [BITS-1:0] div_z_out;
-//   logic sqrt_start;
-//   logic sqrt_done;
-//   logic signed [BITS-1:0] sqrt_out;
+  logic signed [BITS-1:0] norm;
+  logic signed [BITS-1:0] sqrt_in;
+  logic div_start;
+  logic div_x_done;
+  logic div_y_done;
+  logic div_z_done;
+  logic signed [BITS-1:0] div_x_out;
+  logic signed [BITS-1:0] div_y_out;
+  logic signed [BITS-1:0] div_z_out;
+  logic sqrt_start;
+  logic sqrt_done;
+  logic signed [BITS-1:0] sqrt_out;
 
-//   typedef enum {IDLE=0, CALC_NORMAL=1, DIVIDING=2} raygen_state;
-//   raygen_state state;
+  typedef enum {IDLE=0, CALC_NORMAL=1, DIVIDING=2} raygen_state;
+  raygen_state state;
 
-//   sqrt #(
-//     .WIDTH(BITS),
-//     .FBITS(FIXED)
-//   ) sqrt_inst (
-//     .clk(clk_in),
-//     .start(sqrt_start),
-//     .rad(sqrt_in),
-//     .root(sqrt_out),
-//     .valid(sqrt_done)
-//   );
+  sqrt #(
+    .WIDTH(BITS),
+    .FBITS(FIXED)
+  ) sqrt_inst (
+    .clk(clk_in),
+    .start(sqrt_start),
+    .rad(sqrt_in),
+    .root(sqrt_out),
+    .valid(sqrt_done)
+  );
 
-//   div #(
-//     .WIDTH(BITS),
-//     .FBITS(FIXED)
-//   ) divx (
-//     .clk(clk_in),
-//     .rst(rst_in),
-//     .start(div_start),
-//     .a(ray_gen_in_x),
-//     .b(norm),
-//     .done(div_x_done),
-//     .val(div_x_out)
-//   );
+  div #(
+    .WIDTH(BITS),
+    .FBITS(FIXED)
+  ) divx (
+    .clk(clk_in),
+    .rst(rst_in),
+    .start(div_start),
+    .a(ray_gen_in_x),
+    .b(norm),
+    .done(div_x_done),
+    .val(div_x_out)
+  );
 
-//   div #(
-//     .WIDTH(BITS),
-//     .FBITS(FIXED)
-//   ) divy (
-//     .clk(clk_in),
-//     .rst(rst_in),
-//     .start(div_start),
-//     .a(ray_gen_in_y),
-//     .b(norm),
-//     .done(div_y_done),
-//     .val(div_y_out)
-//   );
+  div #(
+    .WIDTH(BITS),
+    .FBITS(FIXED)
+  ) divy (
+    .clk(clk_in),
+    .rst(rst_in),
+    .start(div_start),
+    .a(ray_gen_in_y),
+    .b(norm),
+    .done(div_y_done),
+    .val(div_y_out)
+  );
 
-//   div #(
-//     .WIDTH(BITS),
-//     .FBITS(FIXED)
-//   ) divz (
-//     .clk(clk_in),
-//     .rst(rst_in),
-//     .start(div_start),
-//     .a(ray_gen_in_z),
-//     .b(norm),
-//     .done(div_z_done),
-//     .val(div_z_out)
-//   );
+  div #(
+    .WIDTH(BITS),
+    .FBITS(FIXED)
+  ) divz (
+    .clk(clk_in),
+    .rst(rst_in),
+    .start(div_start),
+    .a(ray_gen_in_z),
+    .b(norm),
+    .done(div_z_done),
+    .val(div_z_out)
+  );
 
-//   always_ff @(posedge clk_in) begin
-//     if(rst_in) begin
-//       ray_gen_done <= 0;
-//       sqrt_start <= 0;
-//       div_start <= 0;
-//       state <= IDLE;
-//     end else begin
-//       case(state)
-//         IDLE: begin
-//           if(ray_gen_start) begin
-//             sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
-//             sqrt_start <= 1;
-//             ray_gen_done <= 0;
-//             state <= CALC_NORMAL;
-//           end
-//         end
-//         CALC_NORMAL: begin
-//           sqrt_start <= 0;
-//           if(~sqrt_start && sqrt_done) begin
-//             norm <= sqrt_out;
-//             div_start <= 1;
-//             state <= DIVIDING;
-//           end
-//         end
-//         DIVIDING: begin
-//           div_start <= 0;
-//           if(~div_start && div_x_done && div_y_done && div_z_done) begin
-//             ray_gen_out_x <= div_x_out;
-//             ray_gen_out_y <= div_y_out;
-//             ray_gen_out_z <= div_z_out;
-//             ray_gen_done <= 1;
-//             state <= IDLE;
-//           end
-//         end
-//       endcase
-//     end
-//   end
-// endmodule
+  always_ff @(posedge clk_in) begin
+    if(rst_in) begin
+      ray_gen_done <= 0;
+      sqrt_start <= 0;
+      div_start <= 0;
+      state <= IDLE;
+    end else begin
+      case(state)
+        IDLE: begin
+          if(ray_gen_start) begin
+            sqrt_in <= square_mag(ray_gen_in_x, ray_gen_in_y, ray_gen_in_z);
+            sqrt_start <= 1;
+            ray_gen_done <= 0;
+            state <= CALC_NORMAL;
+          end
+        end
+        CALC_NORMAL: begin
+          sqrt_start <= 0;
+          if(~sqrt_start && sqrt_done) begin
+            norm <= sqrt_out;
+            div_start <= 1;
+            state <= DIVIDING;
+          end
+        end
+        DIVIDING: begin
+          div_start <= 0;
+          if(~div_start && div_x_done && div_y_done && div_z_done) begin
+            ray_gen_out_x <= div_x_out;
+            ray_gen_out_y <= div_y_out;
+            ray_gen_out_z <= div_z_out;
+            ray_gen_done <= 1;
+            state <= IDLE;
+          end
+        end
+      endcase
+    end
+  end
+endmodule
 
 `default_nettype wire

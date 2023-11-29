@@ -43,7 +43,7 @@ module renderer
       curr_y <= 0;
       timer <= 0;
       starting <= 0;
-    end else if(pixel_done_1 && starting == 0) begin
+  end else if(pixel_done_1 && starting == 0) begin
       curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
       curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
