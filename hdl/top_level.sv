@@ -15,15 +15,18 @@ module top_level(
   output logic [2:0] hdmi_tx_n, //hdmi output signals (negatives) (blue, green, red)
   output logic hdmi_clk_p, hdmi_clk_n //differential hdmi clock
   );
+
+  logic clk_100mhz_buffed;
+  BUFG mbf (.I(clk_100mhz), .O(clk_100mhz_buffed));
   manta manta_inst (
-    .clk(clk_100mhz),
+    .clk(clk_100mhz_buffed),
 
     .rx(uart_rxd),
     .tx(uart_txd),
     
-    .gx(gx), 
-    .gy(gy), 
-    .gz(gz));
+    .gx(pitch), 
+    .gy(roll), 
+    .gz(yaw));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
@@ -40,7 +43,7 @@ module top_level(
   hdmi_clk_wiz_720p mhdmicw (
       .reset(0),
       .locked(locked),
-      .clk_ref(clk_100mhz),
+      .clk_ref(clk_100mhz_buffed),
       .clk_pixel(clk_pixel),
       .clk_tmds(clk_5x));
 
@@ -128,7 +131,7 @@ module top_level(
 
   // Generates a 50mhz clk
   logic clk_50MHz;
-  always @(posedge clk_100mhz) begin
+  always @(posedge clk_100mhz_buffed) begin
       clk_50MHz <= ~clk_50MHz;
   end
   // Gyroscope interface
@@ -144,11 +147,12 @@ module top_level(
       .gz(gz)
   );
 
+  logic [31:0] counter;
   logic [15:0] pitch, roll, yaw;
   logic gyro_done; 
   // Processing output from gyroscope
   process_gyro gyro_process(
-      .clk_100mhz(clk_100mhz),
+      .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
       .gx(gx),
       .gy(gy),
