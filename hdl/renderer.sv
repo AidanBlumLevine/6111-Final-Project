@@ -13,7 +13,17 @@ module renderer
   input wire [9:0] vcount_in,
   output logic [7:0] red_out,
   output logic [7:0] green_out,
-  output logic [7:0] blue_out
+  output logic [7:0] blue_out,
+  // ====================================
+  input wire signed [BITS-1:0] camera_u_x,
+  input wire signed [BITS-1:0] camera_u_y,
+  input wire signed [BITS-1:0] camera_u_z,
+  input wire signed [BITS-1:0] camera_v_x,
+  input wire signed [BITS-1:0] camera_v_y,
+  input wire signed [BITS-1:0] camera_v_z,
+  input wire signed [BITS-1:0] camera_forward_x,
+  input wire signed [BITS-1:0] camera_forward_y,
+  input wire signed [BITS-1:0] camera_forward_z
 );
   logic [$clog2(WIDTH)-1:0] curr_x;
   logic [$clog2(HEIGHT)-1:0] curr_y;
@@ -79,18 +89,18 @@ module renderer
     .out_x(ray_out_x_1),
     .out_y(ray_out_y_1),
     // ====================================
-    .camera_x(to_fixed(0)),
-    .camera_y(to_fixed(0)),
-    .camera_z(to_fixed(150)),
-    .camera_u_x(to_fixed(1)),
-    .camera_u_y(to_fixed(0)),
-    .camera_u_z(to_fixed(0)),
-    .camera_v_x(to_fixed(0)),
-    .camera_v_y(to_fixed(1)),
-    .camera_v_z(to_fixed(0)),
-    .camera_forward_x(to_fixed(0)),
-    .camera_forward_y(to_fixed(0)),
-    .camera_forward_z(to_fixed(-150))
+    .camera_x(camera_x),
+    .camera_y(camera_y),
+    .camera_z(camera_z),
+    .camera_u_x(camera_u_x),
+    .camera_u_y(camera_u_y),
+    .camera_u_z(camera_u_z),
+    .camera_v_x(camera_v_x),
+    .camera_v_y(camera_v_y),
+    .camera_v_z(camera_v_z),
+    .camera_forward_x(camera_forward_x),
+    .camera_forward_y(camera_forward_y),
+    .camera_forward_z(camera_forward_z)
   );
   raymarcher #(
     .WIDTH(WIDTH),
