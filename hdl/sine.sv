@@ -1,63 +1,116 @@
 `timescale 1ns / 1ps
 `default_nettype none // prevents system from inferring an undeclared logic (good practice)
 
-module cosine(input wire [8:0] value, input wire clk_in, input wire rst_in, output logic[31:0] amp_out, output logic ready);
-  logic [8:0] value_to_use; 
-  sine_lut cosine_of_value(
-    .value(value_to_use),
-    .clk_in(clk_in),
-    .amp_out(amp_out)
+module cosine(
+    input wire clk_in, 
+    input wire rst_in, 
+    input wire start,
+    output logic signed[31:0] amp_out, 
+    input wire [8:0] value, 
+    output logic done
   );
-  always_ff @(posedge clk_in) begin
-    if (rst_in) begin
-      value_to_use <= 0;
-    end else begin
-      if (value < 90) begin 
-        value_to_use <= value - 90 + 360;
-      end else 
-        value_to_use <= value - 90;
-    end
-  end
-endmodule
-
-module sine(input wire [8:0] value, input wire clk_in, input wire rst_in, output logic[31:0] amp_out, output logic ready);
-  logic [8:0] value_to_use; 
-  logic [8:0] amp_out_intermediate;
+  typedef enum { IDLE, READING, FLIPPING, DONE } cosine_state;
+  logic [8:0] value_to_use;
+  logic [31:0] amp_out_intermediate;
   logic negate;
-  logic state;
+  cosine_state state;
+
   sine_lut sine_of_value(
     .value(value_to_use),
     .clk_in(clk_in),
     .amp_out(amp_out_intermediate)
   );
+
+  always_comb begin
+    done = (state == DONE);
+  end
+
   always_ff @(posedge clk_in) begin
     if (rst_in) begin
-      value_to_use <= 0;
-      negate <= 0;
-      state <= 0;
+      state <= IDLE;
     end else begin
       case(state)
-        1'b0: begin
-          if (value < 180) begin 
-            value_to_use <= value;
-            negate <= 0;
-          end else if (value < 270) begin 
-            value_to_use <= (value - 180);
-            negate <= 1;
-          end else if (value < 360) begin 
-            value_to_use <= (360 - value);
-            negate <= 1;
-          end 
-          state <= 1;
-        end 
-        1'b1: begin 
-          if (negate) begin 
-            amp_out <= mult(-1, amp_out_intermediate);
-          end else begin 
-            amp_out <= amp_out_intermediate;
-          end 
-          ready <= 0;
-          state <= 0;
+        IDLE: begin
+          if (start) begin
+            if (value < 90) begin 
+              value_to_use <= value + 90;
+              negate <= 0;
+            end else if(value < 270) begin 
+              value_to_use <= value - 90;
+              negate <= 1;
+            end else begin 
+              value_to_use <= value - 270;
+              negate <= 0;
+            end
+            state <= READING;
+          end
+        end
+        READING: begin
+          state <= FLIPPING;
+        end
+        FLIPPING: begin
+          amp_out <= negate ? ~amp_out_intermediate + 1 : amp_out_intermediate;
+          state <= DONE;
+        end
+        DONE: begin
+          state <= IDLE;
+        end
+      endcase
+    end
+  end
+
+endmodule
+
+module sine(
+    input wire clk_in, 
+    input wire rst_in, 
+    input wire start,
+    input wire [8:0] value, 
+    output logic signed[31:0]  amp_out, 
+    output logic done
+  );
+  typedef enum { IDLE, READING, FLIPPING, DONE } sine_state;
+  logic [8:0] value_to_use; 
+  logic [31:0] amp_out_intermediate;
+  logic negate;
+  sine_state state;
+
+  sine_lut sine_of_value(
+    .value(value_to_use),
+    .clk_in(clk_in),
+    .amp_out(amp_out_intermediate)
+  );
+
+  always_comb begin
+    done = (state == DONE);
+  end
+
+  always_ff @(posedge clk_in) begin
+    if (rst_in) begin
+      state <= IDLE;
+    end else begin
+      case(state)
+        IDLE: begin
+          if (start) begin
+            if (value > 180) begin 
+              value_to_use <= (value - 180);
+              negate <= 1;
+            end else begin 
+              value_to_use <= value;
+              negate <= 0;
+            end
+            state <= READING;
+          end
+        end
+        READING: begin
+          state <= FLIPPING;
+        end
+        FLIPPING: begin
+          amp_out <= negate ? ~amp_out_intermediate + 1 : amp_out_intermediate;
+          state <= DONE;
+        end
+        DONE: begin
+          state <= IDLE;
         end
       endcase
     end
