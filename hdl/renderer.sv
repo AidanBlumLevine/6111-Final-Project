@@ -91,7 +91,7 @@ module renderer
     // ====================================
     .camera_x(0),
     .camera_y(0),
-    .camera_z(0),
+    .camera_z(to_fixed(100)),
     .camera_u_x(camera_u_x),
     .camera_u_y(camera_u_y),
     .camera_u_z(camera_u_z),
