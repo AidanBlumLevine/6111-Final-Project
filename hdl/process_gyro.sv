@@ -7,14 +7,13 @@ module process_gyro_simple(
     input wire signed [15:0] gx, 
     input wire signed [15:0] gy,
     input wire signed [15:0] gz,
-    output reg [31:0] pitch,
-    output reg [31:0] roll,
-    output reg [31:0] yaw
+    output reg [8:0] pitch,
+    output reg [8:0] roll,
+    output reg [8:0] yaw
     );
 
 logic [31:0] counter;
 logic signed [39:0] curPitch, curRoll, curYaw; // 32.8 format
-logic [15:0] dPitch, dRoll, dYaw;
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
@@ -28,16 +27,39 @@ always_ff @(posedge clk_100mhz) begin
   end else begin  
     counter <= counter + 1;
     if (counter == 10000 - 1) begin 
+      // divide current pitch, roll, yaw by 10000
+      // to do this, multiply by 7 (approx 1/10000)
+      // and shift right by 16 + 8because curPitch has 8 fractional bits and "7" has 16
+      curPitch <= (curPitch*7)>>>24;
+      curRoll <= (curRoll*7)>>>24;
+      curYaw <= (curYaw*7)>>>24;
+    end else if (counter == 10000) begin
+      if (curPitch < 0) begin
+        pitch <= curPitch + 360;
+      end else if (curPitch >= 360) begin
+        pitch <= curPitch - 360;
+      end else begin
+        pitch <= curPitch;
+      end
+      if (curRoll < 0) begin
+        roll <= curRoll + 360;
+      end else if (curRoll >= 360) begin
+        roll <= curRoll - 360;
+      end else begin
+        roll <= curRoll;
+      end
+      if (curYaw < 0) begin
+        yaw <= curYaw + 360;
+      end else if (curYaw >= 360) begin
+        yaw <= curYaw - 360;
+      end else begin
+        yaw <= curYaw;
+      end
+      
+      counter <= 0;
       curPitch <= 0;
       curRoll <= 0;
       curYaw <= 0;
-      // divide current pitch, roll, yaw by 10000
-      // to do this, multiply by 7 (approx 1/10000)
-      // and shift right by 16 + 8 - 16 because curPitch has 8 fractional bits and "7" has 16, and we want 16 in our answer
-      pitch <= (curPitch*7)>>>8;
-      roll <= (curRoll*7)>>>8;
-      yaw <= (curYaw*7)>>>8;
-      counter <= 0;
     end else begin
       curPitch <= curPitch + gy;
       curRoll <= curRoll + gx;
