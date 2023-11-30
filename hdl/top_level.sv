@@ -24,9 +24,9 @@ module top_level(
     .rx(uart_rxd),
     .tx(uart_txd),
     
-    .gx(pitch), 
-    .gy(roll), 
-    .gz(yaw));
+    .gx(camera_forward_x), 
+    .gy(camera_forward_y), 
+    .gz(camera_forward_z));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
@@ -70,15 +70,15 @@ module top_level(
 
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
-  logic signed [BITS-1:0] camera_u_x,
-  logic signed [BITS-1:0] camera_u_y,
-  logic signed [BITS-1:0] camera_u_z,
-  logic signed [BITS-1:0] camera_v_x,
-  logic signed [BITS-1:0] camera_v_y,
-  logic signed [BITS-1:0] camera_v_z,
-  logic signed [BITS-1:0] camera_forward_x,
-  logic signed [BITS-1:0] camera_forward_y,
-  logic signed [BITS-1:0] camera_forward_z,
+  logic signed [32-1:0] camera_u_x;
+  logic signed [32-1:0] camera_u_y;
+  logic signed [32-1:0] camera_u_z;
+  logic signed [32-1:0] camera_v_x;
+  logic signed [32-1:0] camera_v_y;
+  logic signed [32-1:0] camera_v_z;
+  logic signed [32-1:0] camera_forward_x;
+  logic signed [32-1:0] camera_forward_y;
+  logic signed [32-1:0] camera_forward_z;
   renderer #(
     .WIDTH(320),
     .HEIGHT(180)
@@ -165,11 +165,10 @@ module top_level(
       .gz(gz)
   );
 
-  logic [31:0] counter;
-  logic [15:0] pitch, roll, yaw;
+  logic [8:0] pitch, roll, yaw;
   logic gyro_done; 
   // Processing output from gyroscope
-  process_gyro gyro_process(
+  process_gyro_simple gyro_process(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
       .gx(gx),
@@ -177,8 +176,7 @@ module top_level(
       .gz(gz),
       .pitch(pitch),
       .roll(roll),
-      .yaw(yaw),
-      .ready(gyro_done)
+      .yaw(yaw)
   );
 
 view_output vi(

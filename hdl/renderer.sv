@@ -37,10 +37,10 @@ module renderer
   logic [$clog2(WIDTH)-1:0] ray_out_x_1;
   logic [$clog2(HEIGHT)-1:0] ray_out_y_1;
 
-  logic pixel_done_2;
-  logic [23:0] color_2;
-  logic [$clog2(WIDTH)-1:0] ray_out_x_2;
-  logic [$clog2(HEIGHT)-1:0] ray_out_y_2;
+  // logic pixel_done_2;
+  // logic [23:0] color_2;
+  // logic [$clog2(WIDTH)-1:0] ray_out_x_2;
+  // logic [$clog2(HEIGHT)-1:0] ray_out_y_2;
 
   // logic pixel_done_3;
   // logic [23:0] color_3;
@@ -58,11 +58,11 @@ module renderer
       curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
       starting <= 1;
-    end else if(pixel_done_2 && starting == 0) begin
-      curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
-      curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
-      timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
-      starting <= 2;
+    // end else if(pixel_done_2 && starting == 0) begin
+    //   curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
+    //   curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
+    //   timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
+    //   starting <= 2;
     // end else if(pixel_done_3) begin
     //   curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
     //   curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
@@ -89,9 +89,9 @@ module renderer
     .out_x(ray_out_x_1),
     .out_y(ray_out_y_1),
     // ====================================
-    .camera_x(camera_x),
-    .camera_y(camera_y),
-    .camera_z(camera_z),
+    .camera_x(0),
+    .camera_y(0),
+    .camera_z(0),
     .camera_u_x(camera_u_x),
     .camera_u_y(camera_u_y),
     .camera_u_z(camera_u_z),
@@ -102,34 +102,34 @@ module renderer
     .camera_forward_y(camera_forward_y),
     .camera_forward_z(camera_forward_z)
   );
-  raymarcher #(
-    .WIDTH(WIDTH),
-    .HEIGHT(HEIGHT)
-  ) rm2 (
-    .clk_in(clk_in),
-    .rst_in(rst_in),
-    .start_in(starting == 2),
-    .curr_x(curr_x),
-    .curr_y(curr_y),
-    .timer(timer),
-    .pixel_done(pixel_done_2),
-    .color_out(color_2),
-    .out_x(ray_out_x_2),
-    .out_y(ray_out_y_2),
-    // ====================================
-    .camera_x(to_fixed(0)),
-    .camera_y(to_fixed(0)),
-    .camera_z(to_fixed(150)),
-    .camera_u_x(to_fixed(1)),
-    .camera_u_y(to_fixed(0)),
-    .camera_u_z(to_fixed(0)),
-    .camera_v_x(to_fixed(0)),
-    .camera_v_y(to_fixed(1)),
-    .camera_v_z(to_fixed(0)),
-    .camera_forward_x(to_fixed(0)),
-    .camera_forward_y(to_fixed(0)),
-    .camera_forward_z(to_fixed(-150))
-  );
+  // raymarcher #(
+  //   .WIDTH(WIDTH),
+  //   .HEIGHT(HEIGHT)
+  // ) rm2 (
+  //   .clk_in(clk_in),
+  //   .rst_in(rst_in),
+  //   .start_in(starting == 2),
+  //   .curr_x(curr_x),
+  //   .curr_y(curr_y),
+  //   .timer(timer),
+  //   .pixel_done(pixel_done_2),
+  //   .color_out(color_2),
+  //   .out_x(ray_out_x_2),
+  //   .out_y(ray_out_y_2),
+  //   // ====================================
+  //   .camera_x(to_fixed(0)),
+  //   .camera_y(to_fixed(0)),
+  //   .camera_z(to_fixed(150)),
+  //   .camera_u_x(to_fixed(1)),
+  //   .camera_u_y(to_fixed(0)),
+  //   .camera_u_z(to_fixed(0)),
+  //   .camera_v_x(to_fixed(0)),
+  //   .camera_v_y(to_fixed(1)),
+  //   .camera_v_z(to_fixed(0)),
+  //   .camera_forward_x(to_fixed(0)),
+  //   .camera_forward_y(to_fixed(0)),
+  //   .camera_forward_z(to_fixed(-150))
+  // );
   // raymarcher #(
   //   .WIDTH(WIDTH),
   //   .HEIGHT(HEIGHT)
@@ -166,14 +166,14 @@ module renderer
   assign img_addr = hcount_in + WIDTH * vcount_in;
 
   logic frame_write;
-  assign frame_write = pixel_done_1 || pixel_done_2; // || pixel_done_3
+  assign frame_write = pixel_done_1;// || pixel_done_2; // || pixel_done_3
   logic [31:0] frame_addr;
-  assign frame_addr = pixel_done_1 ? ray_out_x_1 + WIDTH * ray_out_y_1 : 
-                      (pixel_done_2 ? ray_out_x_2 + WIDTH * ray_out_y_2 : 0);
+  assign frame_addr = pixel_done_1 ? ray_out_x_1 + WIDTH * ray_out_y_1 : 0;
+                      //(pixel_done_2 ? ray_out_x_2 + WIDTH * ray_out_y_2 : 0);
                       // (pixel_done_3 ? ray_out_x_3 + WIDTH * ray_out_y_3 : 0));
   logic [23:0] frame_color;
-  assign frame_color = pixel_done_1 ? color_1 : 
-                       (pixel_done_2 ? color_2 : 0); 
+  assign frame_color = pixel_done_1 ? color_1 : 0;
+                       //(pixel_done_2 ? color_2 : 0); 
                       //  (pixel_done_3 ? color_3 : 0));
 
   logic [23:0] frame_buff_raw;
