@@ -1,59 +1,20 @@
 `timescale 1ns / 1ps
 `default_nettype none // prevents system from inferring an undeclared logic (good practice)
 
-module process_gyro(
+module process_gyro_simple(
     input wire clk_100mhz,
     input wire rst_in,
-    input wire [15:0] gx, 
-    input wire [15:0] gy,
-    input wire [15:0] gz,
+    input wire signed [15:0] gx, 
+    input wire signed [15:0] gy,
+    input wire signed [15:0] gz,
     output reg [31:0] pitch,
     output reg [31:0] roll,
-    output reg [31:0] yaw,
-    output reg ready 
+    output reg [31:0] yaw
     );
 
 logic [31:0] counter;
-logic pitch_ready, roll_ready, yaw_ready;
-logic pitch_waiting, roll_waiting, yaw_waiting;
-logic [15:0] curPitch, curRoll, curYaw;
+logic signed [39:0] curPitch, curRoll, curYaw; // 32.8 format
 logic [15:0] dPitch, dRoll, dYaw;
-logic [15:0] gx_used, gy_used, gz_used;
-
-// Adjusting for sampling every 1000 cycles
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-) divide1 (
-    .clk(clk_100mhz),
-    .a({gx_used, 16'b0}),
-    .start(1'b1),
-    .b({16'b0000001111101000, 16'b0}),
-    .val(dRoll)
-    );
-
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-) divide2 (
-    .clk(clk_100mhz),
-    .start(1'b1),
-    .a({gy_used, 16'b0}),
-    .b({16'b0000001111101000, 16'b0}),
-    .val(dPitch)
-    );
-
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-  )
-  divide3 (
-    .clk(clk_100mhz),
-    .start(1'b1),
-    .a({gz_used, 16'b0}),
-    .b({16'b0000001111101000, 16'b0}),
-    .val(dYaw)
-    );
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
@@ -63,28 +24,24 @@ always_ff @(posedge clk_100mhz) begin
     pitch <= 0;
     roll <= 0;
     yaw <= 0;
-    ready <= 0;
     counter <= 0;
   end else begin  
     counter <= counter + 1;
-    if (counter == 0) begin 
-      // Updates values being used in the calculation 
-      gx_used <= gx;
-      gy_used <= gy; 
-      gz_used <= gz;
-      ready <= 0;
-    end else if (counter == 100000 - 1) begin 
-      // First, saves current pitch for next calculation
-      curPitch <= pitch;
-      curRoll <= roll;
-      curYaw <= yaw;
-      // Adds the change in pitch, roll, and yaw to the current pitch, roll, and yaw
-      pitch <= curPitch + dPitch;
-      roll <= curRoll + dRoll;
-      yaw <= curYaw + dYaw;
-      // Resets counter and throws ready high
-      ready <= 1;
+    if (counter == 10000 - 1) begin 
+      curPitch <= 0;
+      curRoll <= 0;
+      curYaw <= 0;
+      // divide current pitch, roll, yaw by 10000
+      // to do this, multiply by 7 (approx 1/10000)
+      // and shift right by 16 + 8 - 16 because curPitch has 8 fractional bits and "7" has 16, and we want 16 in our answer
+      pitch <= (curPitch*7)>>>8;
+      roll <= (curRoll*7)>>>8;
+      yaw <= (curYaw*7)>>>8;
       counter <= 0;
+    end else begin
+      curPitch <= curPitch + gy;
+      curRoll <= curRoll + gx;
+      curYaw <= curYaw + gz;
     end
   end
 end  
@@ -93,175 +50,275 @@ endmodule
 module view_output (
   input wire clk_100mhz,
   input wire rst_in,
-  input wire [15:0] pitch,
-  input wire [15:0] roll,
-  input wire [15:0] yaw,
+  input wire [31:0] pitch,
+  input wire [31:0] roll,
+  input wire [31:0] yaw,
   // Calculates all three vectors
-  output wire [31:0] x_forward,
-  output wire [31:0] y_forward,
-  output wire [31:0] z_forward,
-  output wire [31:0] x_up,
-  output wire [31:0] y_up,
-  output wire [31:0] z_up,
-  output wire [31:0] x_right,
-  output wire [31:0] y_right,
-  output wire [31:0] z_right
+  output logic [31:0] x_forward,
+  output logic [31:0] y_forward,
+  output logic [31:0] z_forward,
+  output logic [31:0] x_up,
+  output logic [31:0] y_up,
+  output logic [31:0] z_up,
+  output logic [31:0] x_right,
+  output logic [31:0] y_right,
+  output logic [31:0] z_right
   ); 
 
 
 // Values for forward_vector
 logic [8:0] x_forward_val1, x_forward_val2, y_forward_val, z_forward_val1, z_forward_val2;
-logic [31:0] x_forward1, x_forward2, y_forward, z_forward1, z_forward2;
+logic [31:0] x_forward1, x_forward2, y_forward1, z_forward1, z_forward2;
 logic x_forward_go1, x_forward_go2, y_forward_go, z_forward_go1, z_forward_go2;
-logic x_forward_ready1, x_forward_ready2, y_forward_ready, z_forward_ready1, z_forward_ready2;
+logic x_forward_done1, x_forward_done2, y_forward_done, z_forward_done1, z_forward_done2;
 // Values for up vector
 logic [8:0] x_up_val1, x_up_val2, y_up_val, z_up_val1, z_up_val2;
 logic [31:0] x_up1, x_up2, y_up1, y_up2, z_up1, z_up2;
 logic x_up_go1, x_up_go2, y_up_go, z_up_go1, z_up_go2;
-logic x_up_ready1, x_up_ready2 y_up_ready, z_up_ready1, z_up_ready2;
+logic x_up_done1, x_up_done2, y_up_done, z_up_done1, z_up_done2;
 // Values for right vector
 logic [8:0] x_right_val, z_right_val;
-logic [31:0] x_right, z_right;
+logic [31:0] x_right1, z_right1;
 logic x_right_go, z_right_go;
-logic x_right_ready, z_right_ready;
+logic x_right_done, z_right_done;
 
 
 // Trigonometry calculations for forward vector
 cosine cos_x_forward(
+  .start(x_forward_go1),
   .value(x_forward_val1),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_forward_val1),
-  .ready(x_forward_ready1)
+  .amp_out(x_forward1),
+  .done(x_forward_done1)
 );
 
 sine sin_x_forward(
+  .start(x_forward_go2),
   .value(x_forward_val2),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_forward_val2),
-  .ready(x_forward_ready2)
+  .amp_out(x_forward2),
+  .done(x_forward_done2)
 );
 
 sine sin_y_forward(
+  .start(y_forward_go),
   .value(y_forward_val),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(y_forward_val),
-  .ready(y_forward_ready)
+  .amp_out(y_forward1),
+  .done(y_forward_done)
 );
 
 cosine cos_z_forward1(
+  .start(z_forward_go1),
   .value(z_forward_val1),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(z_forward_val1),
-  .ready(z_forward_ready1)
+  .amp_out(z_forward1),
+  .done(z_forward_done1)
 );
 
-cos cos_z_forward2(
+cosine cos_z_forward2(
+  .start(z_forward_go2),
   .value(z_forward_val2),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(z_forward_val2),
-  .ready(z_forward_ready2)
+  .amp_out(z_forward2),
+  .done(z_forward_done2)
 );
 
 // Trigonometry calculations for up vector
-cos cos_x_up(
+cosine cos_x_up(
+  .start(x_up_go1),
   .value(x_up_val1),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_up_val1),
-  .ready(x_up_ready1)
+  .amp_out(x_up1),
+  .done(x_up_done1)
 );
 sine sin_x_up(
+  .start(x_up_go2),
   .value(x_up_val2),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_up_val1),
-  .ready(x_up_ready1)
+  .amp_out(x_up2),
+  .done(x_up_done2)
 );
 
-cos cos_y_up(
+cosine cos_y_up(
+  .start(y_up_go),
   .value(y_up_val),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(y_up_val),
-  .ready(y_up_ready)
+  .amp_out(y_up1),
+  .done(y_up_done)
 );
 
 sine sin_z_up(
+  .start(z_up_go1),
   .value(z_up_val1),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(z_up_val1),
-  .ready(z_up_ready1)
+  .amp_out(z_up1),
+  .done(z_up_done1)
 );
 
-cos cos_z_up(
+cosine cos_z_up(
+  .start(z_up_go2),
   .value(z_up_val2),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(z_up_val2),
-  .ready(z_up_ready2)
+  .amp_out(z_up2),
+  .done(z_up_done2)
 );
 
 // Trigonometry calculations for right vector
 
-cos cos_x_right(
+cosine cos_x_right(
+  .start(x_right_go),
   .value(x_right_val),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_right_val),
-  .ready(x_right_ready)
+  .amp_out(x_right1),
+  .done(x_right_done)
 );
 
-cos cos_z_right(
+cosine cos_z_right(
+  .start(z_right_go),
   .value(z_right_val),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(z_right_val),
-  .ready(z_right_ready)
+  .amp_out(z_right1),
+  .done(z_right_done)
 );
 
-
+logic state; // 0 = UPDATING, 1= CALCULATING
 logic [0:7] sin_x_1, sin_x_2, sin_y_1, sin_y_2, sin_z_1; 
+logic x_forward1_complete, x_forward2_complete, y_forward_complete, z_forward1_complete, z_forward2_complete;
+logic x_up1_complete, x_up2_complete, y_up_complete, z_up1_complete, z_up2_complete;
+logic x_right_complete, z_right_complete;
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
-    x <= 0;
-    y <= 0;
-    z <= 0;
-    x_offset <= 0;
-    y_offset <= 0;
-    z_offset <= 0;
+    state <= 0;
+    x_forward_go1 <= 0;
+    x_forward_go2 <= 0;
+    y_forward_go <= 0;
+    z_forward_go1 <= 0;
+    z_forward_go2 <= 0;
   end else begin 
-    x_forward_val1 <= pitch;
-    x_forward_val2 <= yaw;
-    y_forward_val <= pitch;
-    z_forward_val1 <= pitch;
-    z_forward_val2 <= yaw;
+    case(state)
+      1'b0: begin
+        // Updates angles
+        x_forward_val1 <= pitch >>> 16;
+        x_forward_val2 <= yaw >>> 16;
+        y_forward_val <= pitch >> 16;
+        z_forward_val1 <= pitch >> 16;
+        z_forward_val2 <= yaw >> 16;
 
-    // x_forward <= sin; // x <= cos(pitch)*sin(yaw)
-    // y_forward <= roll; // y <= -sin(pitch)
-    // z_forward <= yaw; // z <= cos(pitch)*cos(yaw)
+        // Starts calculation
+        x_forward_go1 <= 1;
+        x_forward_go2 <= 1;
+        y_forward_go <= 1;
+        z_forward_go1 <= 1;
+        z_forward_go2 <= 1;
 
-    x_up_val1 <= pitch;
-    x_up_val2 <= yaw;
-    y_up_val <= pitch;
-    z_up_val1 <= pitch;
-    z_up_val2 <= yaw;
+        // Updates angles
+        x_up_val1 <= pitch >>> 16;
+        x_up_val2 <= yaw >>> 16;
+        y_up_val <= pitch >>> 16;
+        z_up_val1 <= pitch;
+        z_up_val2 <= yaw;
 
-    // x_up <= sin; // x <= sin(pitch)*sin(yaw)
-    // y_up <= roll; // y <= cos(pitch)
-    // z_up <= yaw; // z <= sin(pitch)*cos(yaw)
+        // Starts calculation
+        x_up_go1 <= 1;
+        x_up_go2 <= 1;
+        y_up_go <= 1;
+        z_up_go1 <= 1;
+        z_up_go2 <= 1;
 
-    x_right_val <= yaw;
-    z_right_val <= yaw;
-    
-    // x_right <= sin; // x <= cos(yaw)
-    // y_right <= roll; // y <= 0
-    // z_right <= yaw; // z <= -sin(yaw)
+        // Updates angles
+        x_right_val <= yaw;
+        z_right_val <= yaw;
+        x_right_go <= 1;
+        z_right_go <= 1;
+
+        // Sends to calculating state 
+        state <= 1;
+      end 
+      1'b1: begin
+        // Saves finished calculations
+        if (x_forward_done1) begin
+        $display("STATE 1");
+
+          x_forward1_complete <= 1;
+          x_forward_go1 <= 0;
+        end 
+        if (x_forward_done2) begin 
+          x_forward2_complete <= 1;
+          x_forward_go2 <= 0;
+        end
+        if (y_forward_done) begin 
+          y_forward_complete <= 1;
+          y_forward_go <= 0;
+        end
+        if (z_forward_done1) begin 
+          z_forward1_complete <= 1;
+          z_forward_go1 <= 0;
+        end
+        if (z_forward_done2) begin 
+          z_forward2_complete <= 1;
+          z_forward_go2 <= 0;
+        end
+        if (x_up_done1) begin 
+          x_up1_complete <= 1;
+          x_up_go1 <= 0;
+        end
+        if (x_up_done2) begin 
+          x_up2_complete <= 1;
+          x_up_go2 <= 0;
+        end
+        if (y_up_done) begin 
+          y_up_complete <= 1;
+          y_up_go <= 0;
+        end
+        if (z_up_done1) begin 
+          z_up1_complete <= 1;
+          z_up_go1 <= 0;
+        end
+        if (z_up_done2) begin 
+          z_up2_complete <= 1;
+          z_up_go2 <= 0;
+        end
+        if (x_right_done) begin 
+          x_right_complete <= 1;
+          x_right_go <= 0;
+        end
+        if (z_right_done) begin 
+          z_right_complete <= 1;
+          z_right_go <= 0;
+        end
+        if (x_forward_done1 && x_forward_done2
+         && y_forward_done && z_forward_done1
+         && z_forward_done2 && x_up_done1 
+         && x_up_done2 && y_up_done 
+         && z_up_done1 && z_up_done2 
+         && x_right_done && z_right_done) begin 
+          $display("SETTING VALUE");
+          x_forward <= mult(x_forward_val1,x_forward_val2); 
+          y_forward <= ~y_forward_val + 1;
+          z_forward <= mult(z_forward_val1,z_forward_val2);
+          x_up <= mult(x_up_val1,x_up_val2);
+          y_up <= y_up_val;
+          z_up <= mult(z_up_val1,z_up_val2);
+          x_right <= x_right_val;
+          y_right <= 0;
+          z_right <= ~z_right_val + 1;
+          state <= 0;
+        end
+      end 
+    endcase 
   end 
 
 end 
