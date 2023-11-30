@@ -57,6 +57,112 @@ module sqrt #(
     end
 endmodule
 
+`timescale 1ns / 1ps
+`default_nettype none
+
+module quick_sqrt #(
+    parameter WIDTH=32,  // width of radicand
+    parameter FBITS=16   // fractional bits (for fixed point)
+) (
+    input wire logic clk,
+    input wire logic start,             // start signal
+    output logic busy,                 // calculation in progress
+    output logic valid,                // root and rem are valid
+    input wire logic [WIDTH-1:0] rad,   // radicand
+    output logic [WIDTH-1:0] root      // root
+);
+
+    logic [WIDTH-1:0] inv_sqrt_out;
+    logic [WIDTH-1:0] inv_sqrt_in;
+
+    inv_sqrt #(
+        .WIDTH(WIDTH),
+        .FBITS(FBITS)
+    ) inv_sqrt_inst (
+        .clk(clk),
+        .start(start),
+        .valid(),
+        .rad(rad),
+        .root(inv_sqrt_out)
+    );
+
+    always_ff @(posedge clk) begin
+        if (start) begin
+            busy <= 1;
+            valid <= 0;
+            inv_sqrt_in <= rad;
+        end else if (inv_sqrt_inst.valid) begin
+            busy <= 0;
+            valid <= 1;
+            root <= mult(inv_sqrt_out, inv_sqrt_in); // Multiply inv_sqrt result by radicand
+        end
+    end
+endmodule
+
+
+module inv_sqrt #(
+    parameter WIDTH=32,  // width of radicand
+    parameter FBITS=16   // fractional bits (for fixed point)
+) (
+    input wire logic clk,
+    input wire logic start,             // start signal
+    output logic valid,                 // root and rem are valid
+    input wire logic [WIDTH-1:0] rad,   // radicand
+    output logic [WIDTH-1:0] root       // root
+);
+    logic [WIDTH-1:0] guess;
+    logic [4:0] iter;
+    logic [WIDTH-1:0] one_point_five = 32'h00018000;
+    logic [WIDTH-1:0] point_five = 32'h00008000;
+    always_ff @(posedge clk) begin
+        if (start) begin
+            root <= 0;
+            valid <= 0;
+            iter <= 0;
+            if (rad[31]) guess <= 32'h0000016a;
+            else if (rad[30]) guess <= 32'h00000200;
+            else if (rad[29]) guess <= 32'h000002d4;
+            else if (rad[28]) guess <= 32'h00000400;
+            else if (rad[27]) guess <= 32'h000005a8;
+            else if (rad[26]) guess <= 32'h00000800;
+            else if (rad[25]) guess <= 32'h00000b50;
+            else if (rad[24]) guess <= 32'h00001000;
+            else if (rad[23]) guess <= 32'h000016a0;
+            else if (rad[22]) guess <= 32'h00002000;
+            else if (rad[21]) guess <= 32'h00002d41;
+            else if (rad[20]) guess <= 32'h00004000;
+            else if (rad[19]) guess <= 32'h00005a82;
+            else if (rad[18]) guess <= 32'h00008000;
+            else if (rad[17]) guess <= 32'h0000b504;
+            else if (rad[16]) guess <= 32'h00010000;
+            else if (rad[15]) guess <= 32'h00016a09;
+            else if (rad[14]) guess <= 32'h00020000;
+            else if (rad[13]) guess <= 32'h0002d413;
+            else if (rad[12]) guess <= 32'h00040000;
+            else if (rad[11]) guess <= 32'h0005a827;
+            else if (rad[10]) guess <= 32'h00080000;
+            else if (rad[9]) guess <= 32'h000b504f;
+            else if (rad[8]) guess <= 32'h00100000;
+            else if (rad[7]) guess <= 32'h0016a09e;
+            else if (rad[6]) guess <= 32'h00200000;
+            else if (rad[5]) guess <= 32'h002d413c;
+            else if (rad[4]) guess <= 32'h00400000;
+            else if (rad[3]) guess <= 32'h005a8279;
+            else if (rad[2]) guess <= 32'h00800000;
+            else if (rad[1]) guess <= 32'h00b504f3;
+            else guess <= 32'h00200000;
+        end else if (iter < 10) begin
+            iter <= iter + 1;
+            // Newton Raphson: g = g * (1.5 - .5 * c * g * g);
+            guess <= mult(guess, one_point_five - mult(point_five, mult(rad, mult(guess, guess))));
+        end else begin
+            root <= guess;
+            valid <= 1;
+        end
+    end
+endmodule
+
+
 //https://projectf.io/posts/division-in-verilog/
 module div #(
     parameter WIDTH=32,  // width of numbers in bits (integer and fractional)

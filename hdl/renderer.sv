@@ -17,35 +17,49 @@ module renderer
 );
   logic [$clog2(WIDTH)-1:0] curr_x;
   logic [$clog2(HEIGHT)-1:0] curr_y;
-  logic [$clog2(WIDTH)-1:0] ray_out_x;
-  logic [$clog2(HEIGHT)-1:0] ray_out_y;
 
   logic [5:0] counter;
-  logic pixel_done;
-  logic [7:0] pixel_red;
-  logic [7:0] pixel_green;
-  logic [7:0] pixel_blue;
+  logic [31:0] starting;
   logic [31:0] timer;
 
-  // logic clk_half;
-  // always_ff @(posedge clk_in) begin
-  //   clk_half <= ~clk_half;
-  // end 
+  logic pixel_done_1;
+  logic [23:0] color_1;
+  logic [$clog2(WIDTH)-1:0] ray_out_x_1;
+  logic [$clog2(HEIGHT)-1:0] ray_out_y_1;
+
+  logic pixel_done_2;
+  logic [23:0] color_2;
+  logic [$clog2(WIDTH)-1:0] ray_out_x_2;
+  logic [$clog2(HEIGHT)-1:0] ray_out_y_2;
+
+  // logic pixel_done_3;
+  // logic [23:0] color_3;
+  // logic [$clog2(WIDTH)-1:0] ray_out_x_3;
+  // logic [$clog2(HEIGHT)-1:0] ray_out_y_3;
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
       curr_x <= 0;
       curr_y <= 0;
       timer <= 0;
-    end else if(pixel_done) begin
-      // $display("pixel_done");
-      // $display("frame_addr: %d", frame_addr);
-      // $display("image_addr: %d", img_addr);
-      // $display("curr_x: %d", curr_x);
-      // $display("curr_y: %d", curr_y);
+      starting <= 0;
+  end else if(pixel_done_1 && starting == 0) begin
       curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
       curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
+      starting <= 1;
+    end else if(pixel_done_2 && starting == 0) begin
+      curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
+      curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
+      timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
+      starting <= 2;
+    // end else if(pixel_done_3) begin
+    //   curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
+    //   curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
+    //   timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
+    //   starting <= 3;
+    end else begin
+      starting <= 0;
     end
   end
 
@@ -53,22 +67,21 @@ module renderer
   raymarcher #(
     .WIDTH(WIDTH),
     .HEIGHT(HEIGHT)
-  ) rm (
+  ) rm1 (
     .clk_in(clk_in),
     .rst_in(rst_in),
+    .start_in(starting == 1),
     .curr_x(curr_x),
     .curr_y(curr_y),
     .timer(timer),
-    .pixel_done(pixel_done),
-    .red_out(pixel_red),
-    .green_out(pixel_green),
-    .blue_out(pixel_blue),
-    .out_x(ray_out_x),
-    .out_y(ray_out_y),
+    .pixel_done(pixel_done_1),
+    .color_out(color_1),
+    .out_x(ray_out_x_1),
+    .out_y(ray_out_y_1),
     // ====================================
     .camera_x(to_fixed(0)),
     .camera_y(to_fixed(0)),
-    .camera_z(to_fixed(0)),
+    .camera_z(to_fixed(150)),
     .camera_u_x(to_fixed(1)),
     .camera_u_y(to_fixed(0)),
     .camera_u_z(to_fixed(0)),
@@ -77,8 +90,64 @@ module renderer
     .camera_v_z(to_fixed(0)),
     .camera_forward_x(to_fixed(0)),
     .camera_forward_y(to_fixed(0)),
-    .camera_forward_z(to_fixed(150))
+    .camera_forward_z(to_fixed(-150))
   );
+  raymarcher #(
+    .WIDTH(WIDTH),
+    .HEIGHT(HEIGHT)
+  ) rm2 (
+    .clk_in(clk_in),
+    .rst_in(rst_in),
+    .start_in(starting == 2),
+    .curr_x(curr_x),
+    .curr_y(curr_y),
+    .timer(timer),
+    .pixel_done(pixel_done_2),
+    .color_out(color_2),
+    .out_x(ray_out_x_2),
+    .out_y(ray_out_y_2),
+    // ====================================
+    .camera_x(to_fixed(0)),
+    .camera_y(to_fixed(0)),
+    .camera_z(to_fixed(150)),
+    .camera_u_x(to_fixed(1)),
+    .camera_u_y(to_fixed(0)),
+    .camera_u_z(to_fixed(0)),
+    .camera_v_x(to_fixed(0)),
+    .camera_v_y(to_fixed(1)),
+    .camera_v_z(to_fixed(0)),
+    .camera_forward_x(to_fixed(0)),
+    .camera_forward_y(to_fixed(0)),
+    .camera_forward_z(to_fixed(-150))
+  );
+  // raymarcher #(
+  //   .WIDTH(WIDTH),
+  //   .HEIGHT(HEIGHT)
+  // ) rm3 (
+  //   .clk_in(clk_in),
+  //   .rst_in(rst_in),
+  //   .start_in(starting == 3),
+  //   .curr_x(curr_x),
+  //   .curr_y(curr_y),
+  //   .timer(timer),
+  //   .pixel_done(pixel_done_3),
+  //   .color_out(color_3),
+  //   .out_x(ray_out_x_3),
+  //   .out_y(ray_out_y_3),
+  //   // ====================================
+  //   .camera_x(to_fixed(0)),
+  //   .camera_y(to_fixed(0)),
+  //   .camera_z(to_fixed(150)),
+  //   .camera_u_x(to_fixed(1)),
+  //   .camera_u_y(to_fixed(0)),
+  //   .camera_u_z(to_fixed(0)),
+  //   .camera_v_x(to_fixed(0)),
+  //   .camera_v_y(to_fixed(1)),
+  //   .camera_v_z(to_fixed(0)),
+  //   .camera_forward_x(to_fixed(0)),
+  //   .camera_forward_y(to_fixed(0)),
+  //   .camera_forward_z(to_fixed(-150))
+  // );
 
   logic in_frame;
   assign in_frame = (hcount_in < WIDTH) && (vcount_in < HEIGHT);
@@ -86,8 +155,16 @@ module renderer
   logic [31:0] img_addr;
   assign img_addr = hcount_in + WIDTH * vcount_in;
 
+  logic frame_write;
+  assign frame_write = pixel_done_1 || pixel_done_2; // || pixel_done_3
   logic [31:0] frame_addr;
-  assign frame_addr = ray_out_x + WIDTH * ray_out_y;
+  assign frame_addr = pixel_done_1 ? ray_out_x_1 + WIDTH * ray_out_y_1 : 
+                      (pixel_done_2 ? ray_out_x_2 + WIDTH * ray_out_y_2 : 0);
+                      // (pixel_done_3 ? ray_out_x_3 + WIDTH * ray_out_y_3 : 0));
+  logic [23:0] frame_color;
+  assign frame_color = pixel_done_1 ? color_1 : 
+                       (pixel_done_2 ? color_2 : 0); 
+                      //  (pixel_done_3 ? color_3 : 0));
 
   logic [23:0] frame_buff_raw;
   xilinx_true_dual_port_read_first_2_clock_ram #(
@@ -96,8 +173,8 @@ module renderer
   ) frame_buffer (
     .addra(frame_addr),
     .clka(clk_in),
-    .wea(pixel_done),
-    .dina({pixel_red, pixel_green, pixel_blue}),
+    .wea(frame_write),
+    .dina(frame_color),
     .ena(1'b1),
     .regcea(1'b1),
     .rsta(rst_in),

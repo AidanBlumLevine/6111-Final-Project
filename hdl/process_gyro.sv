@@ -7,9 +7,9 @@ module process_gyro(
     input wire [15:0] gx, 
     input wire [15:0] gy,
     input wire [15:0] gz,
-    output reg [15:0] pitch,
-    output reg [15:0] roll,
-    output reg [15:0] yaw,
+    output reg [31:0] pitch,
+    output reg [31:0] roll,
+    output reg [31:0] yaw,
     output reg ready 
     );
 
