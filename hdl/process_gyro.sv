@@ -72,9 +72,9 @@ endmodule
 module view_output (
   input wire clk_100mhz,
   input wire rst_in,
-  input wire [31:0] pitch,
-  input wire [31:0] roll,
-  input wire [31:0] yaw,
+  input wire [8:0] pitch,
+  input wire [8:0] roll,
+  input wire [8:0] yaw,
   // Calculates all three vectors
   output logic [31:0] x_forward,
   output logic [31:0] y_forward,
@@ -207,7 +207,7 @@ cosine cos_x_right(
   .done(x_right_done)
 );
 
-cosine cos_z_right(
+sine sin_z_right(
   .start(z_right_go),
   .value(z_right_val),
   .clk_in(clk_100mhz),
@@ -233,11 +233,11 @@ always_ff @(posedge clk_100mhz) begin
     case(state)
       1'b0: begin
         // Updates angles
-        x_forward_val1 <= pitch >>> 16;
-        x_forward_val2 <= yaw >>> 16;
-        y_forward_val <= pitch >> 16;
-        z_forward_val1 <= pitch >> 16;
-        z_forward_val2 <= yaw >> 16;
+        x_forward_val1 <= pitch;
+        x_forward_val2 <= yaw;
+        y_forward_val <= pitch;
+        z_forward_val1 <= pitch;
+        z_forward_val2 <= yaw;
 
         // Starts calculation
         x_forward_go1 <= 1;
@@ -247,9 +247,9 @@ always_ff @(posedge clk_100mhz) begin
         z_forward_go2 <= 1;
 
         // Updates angles
-        x_up_val1 <= pitch >>> 16;
-        x_up_val2 <= yaw >>> 16;
-        y_up_val <= pitch >>> 16;
+        x_up_val1 <= pitch;
+        x_up_val2 <= yaw;
+        y_up_val <= pitch;
         z_up_val1 <= pitch;
         z_up_val2 <= yaw;
 
@@ -272,8 +272,6 @@ always_ff @(posedge clk_100mhz) begin
       1'b1: begin
         // Saves finished calculations
         if (x_forward_done1) begin
-        $display("STATE 1");
-
           x_forward1_complete <= 1;
           x_forward_go1 <= 0;
         end 
@@ -327,16 +325,15 @@ always_ff @(posedge clk_100mhz) begin
          && x_up_done2 && y_up_done 
          && z_up_done1 && z_up_done2 
          && x_right_done && z_right_done) begin 
-          $display("SETTING VALUE");
-          x_forward <= mult(x_forward_val1,x_forward_val2); 
-          y_forward <= ~y_forward_val + 1;
-          z_forward <= mult(z_forward_val1,z_forward_val2);
-          x_up <= mult(x_up_val1,x_up_val2);
-          y_up <= y_up_val;
-          z_up <= mult(z_up_val1,z_up_val2);
-          x_right <= x_right_val;
+          x_forward <= mult(x_forward1,x_forward2); 
+          y_forward <= ~y_forward1 + 1;
+          z_forward <= mult(z_forward1,z_forward2);
+          x_up <= mult(x_up1,x_up2);
+          y_up <= y_up1;
+          z_up <= mult(z_up1,z_up2);
+          x_right <= x_right1;
           y_right <= 0;
-          z_right <= ~z_right_val + 1;
+          z_right <= ~z_right1 + 1;
           state <= 0;
         end
       end 
