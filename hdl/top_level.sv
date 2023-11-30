@@ -70,6 +70,15 @@ module top_level(
 
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
+  logic signed [BITS-1:0] camera_u_x,
+  logic signed [BITS-1:0] camera_u_y,
+  logic signed [BITS-1:0] camera_u_z,
+  logic signed [BITS-1:0] camera_v_x,
+  logic signed [BITS-1:0] camera_v_y,
+  logic signed [BITS-1:0] camera_v_z,
+  logic signed [BITS-1:0] camera_forward_x,
+  logic signed [BITS-1:0] camera_forward_y,
+  logic signed [BITS-1:0] camera_forward_z,
   renderer #(
     .WIDTH(320),
     .HEIGHT(180)
@@ -80,7 +89,16 @@ module top_level(
     .vcount_in(vcount >> 2),
     .red_out(red),
     .green_out(green),
-    .blue_out(blue)
+    .blue_out(blue),
+    .camera_u_x(camera_u_x),
+    .camera_u_y(camera_u_y),
+    .camera_u_z(camera_u_z),
+    .camera_v_x(camera_v_x),
+    .camera_v_y(camera_v_y),
+    .camera_v_z(camera_v_z),
+    .camera_forward_x(camera_forward_x),
+    .camera_forward_y(camera_forward_y),
+    .camera_forward_z(camera_forward_z)
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
@@ -163,7 +181,22 @@ module top_level(
       .ready(gyro_done)
   );
 
-
+view_output vi(
+  .clk_100mhz(clk_100mhz_buffed),
+  .rst_in(sys_rst),
+  .pitch(pitch),
+  .roll(roll),
+    .yaw(yaw),
+    .x_forward(camera_forward_x),
+    .y_forward(camera_forward_y),
+    .z_forward(camera_forward_z),
+    .x_up(camera_u_x),
+    .y_up(camera_u_y),
+    .z_up(camera_u_z),
+    .x_right(camera_v_x),
+    .y_right(camera_v_y),
+    .z_right(camera_v_z)
+  ); 
 endmodule // top_level
 
 `default_nettype wire
