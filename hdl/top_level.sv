@@ -18,15 +18,15 @@ module top_level(
 
   logic clk_100mhz_buffed;
   BUFG mbf (.I(clk_100mhz), .O(clk_100mhz_buffed));
-  manta manta_inst (
-    .clk(clk_100mhz_buffed),
+  // manta manta_inst (
+  //   .clk(clk_100mhz_buffed),
 
-    .rx(uart_rxd),
-    .tx(uart_txd),
+  //   .rx(uart_rxd),
+  //   .tx(uart_txd),
     
-    .gx(camera_forward_x), 
-    .gy(camera_forward_y), 
-    .gz(camera_forward_z));
+  //   .gx(camera_forward_x), 
+  //   .gy(camera_forward_y), 
+  //   .gz(camera_forward_z));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
@@ -70,12 +70,12 @@ module top_level(
 
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
-  logic signed [32-1:0] camera_u_x;
-  logic signed [32-1:0] camera_u_y;
-  logic signed [32-1:0] camera_u_z;
-  logic signed [32-1:0] camera_v_x;
-  logic signed [32-1:0] camera_v_y;
-  logic signed [32-1:0] camera_v_z;
+  logic signed [32-1:0] camera_up_x;
+  logic signed [32-1:0] camera_up_y;
+  logic signed [32-1:0] camera_up_z;
+  logic signed [32-1:0] camera_right_x;
+  logic signed [32-1:0] camera_right_y;
+  logic signed [32-1:0] camera_right_z;
   logic signed [32-1:0] camera_forward_x;
   logic signed [32-1:0] camera_forward_y;
   logic signed [32-1:0] camera_forward_z;
@@ -90,15 +90,15 @@ module top_level(
     .red_out(red),
     .green_out(green),
     .blue_out(blue),
-    .camera_u_x(camera_u_x),
-    .camera_u_y(camera_u_y),
-    .camera_u_z(camera_u_z),
-    .camera_v_x(camera_v_x),
-    .camera_v_y(camera_v_y),
-    .camera_v_z(camera_v_z),
-    .camera_forward_x(camera_forward_x),
-    .camera_forward_y(camera_forward_y),
-    .camera_forward_z(camera_forward_z)
+    .camera_u_x_raw(camera_right_x),
+    .camera_u_y_raw(camera_right_y),
+    .camera_u_z_raw(camera_right_z),
+    .camera_v_x_raw(camera_up_x),
+    .camera_v_y_raw(camera_up_y),
+    .camera_v_z_raw(camera_up_z),
+    .camera_forward_x_raw((~camera_forward_x + 1) <<< 7),
+    .camera_forward_y_raw((~camera_forward_y + 1) <<< 7),
+    .camera_forward_z_raw((~camera_forward_z + 1) <<< 7) // *128 scaling here is how far the projection plane 
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
@@ -153,47 +153,46 @@ module top_level(
       clk_50MHz <= ~clk_50MHz;
   end
   // Gyroscope interface
-  logic [15:0] gx, gy, gz;
-  mpu_rg mpu6050(
-      .CLOCK_50(clk_50MHz),
-      .en(1'b1),
-      .reset_n(~sys_rst),
-      .I2C_SDAT(pmodb[1]),
-      .I2C_SCLK(pmodb[2]),
-      .gx(gx),
-      .gy(gy),
-      .gz(gz)
-  );
+  // logic [15:0] gx, gy, gz;
+  // mpu_rg mpu6050(
+  //     .CLOCK_50(clk_50MHz),
+  //     .en(1'b1),
+  //     .reset_n(~sys_rst),
+  //     .I2C_SDAT(pmodb[1]),
+  //     .I2C_SCLK(pmodb[2]),
+  //     .gx(gx),
+  //     .gy(gy),
+  //     .gz(gz)
+  // );
 
   logic [8:0] pitch, roll, yaw;
-  logic gyro_done; 
-  // Processing output from gyroscope
+  // // Processing output from gyroscope
   process_gyro_simple gyro_process(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .gx(gx),
-      .gy(gy),
-      .gz(gz),
+      .gx(45 << 8),
+      .gy(45 << 8),
+      .gz(45 << 8),
       .pitch(pitch),
       .roll(roll),
       .yaw(yaw)
   );
 
-view_output vi(
-  .clk_100mhz(clk_100mhz_buffed),
-  .rst_in(sys_rst),
-  .pitch(pitch),
-  .roll(roll),
-    .yaw(yaw),
-    .x_forward(camera_forward_x),
-    .y_forward(camera_forward_y),
-    .z_forward(camera_forward_z),
-    .x_up(camera_u_x),
-    .y_up(camera_u_y),
-    .z_up(camera_u_z),
-    .x_right(camera_v_x),
-    .y_right(camera_v_y),
-    .z_right(camera_v_z)
+  view_output_simple vi(
+      .clk_100mhz(clk_100mhz_buffed),
+      .rst_in(sys_rst),
+      .pitch(pitch),
+      .roll(roll),
+      .yaw(yaw),
+      .x_forward(camera_forward_x),
+      .y_forward(camera_forward_y),
+      .z_forward(camera_forward_z),
+      .x_up(camera_up_x),
+      .y_up(camera_up_y),
+      .z_up(camera_up_z),
+      .x_right(camera_right_x),
+      .y_right(camera_right_y),
+      .z_right(camera_right_z)
   ); 
 endmodule // top_level
 

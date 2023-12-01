@@ -12,334 +12,120 @@ module process_gyro_simple(
     output reg [8:0] yaw
     );
 
-logic [31:0] counter;
-logic signed [39:0] curPitch, curRoll, curYaw; // 32.8 format
+logic [$clog2(10000000):0] counter;
+logic signed [42:0] chunkPitch, chunkRoll, chunkYaw; // 42.0 format, can fit 360 degrees per second constant reading (10000000 cycles)
+logic signed [20:0] curPitch, curRoll, curYaw; // 12.8 format
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
     curPitch <= 0;
     curRoll <= 0;
     curYaw <= 0;
+    chunkPitch <= 0;
+    chunkRoll <= 0;
+    chunkYaw <= 0;
     pitch <= 0;
     roll <= 0;
     yaw <= 0;
     counter <= 0;
   end else begin  
     counter <= counter + 1;
-    if (counter == 10000 - 1) begin 
-      // divide current pitch, roll, yaw by 10000
-      // to do this, multiply by 7 (approx 1/10000)
-      // and shift right by 16 + 8because curPitch has 8 fractional bits and "7" has 16
-      curPitch <= (curPitch*7)>>>24;
-      curRoll <= (curRoll*7)>>>24;
-      curYaw <= (curYaw*7)>>>24;
-    end else if (counter == 10000) begin
+    if (counter == 10000000 - 1) begin 
+      // divide current pitch, roll, yaw by 100000000  (100mHz)
+      // to do this, multiply by 43 (approx 1/100000000) (100mHz)
+      // and shift right by 32 + 0 - 8 because curPitch has 0 fractional bits and "43" has 32, and we want 8 in our answer
+      curPitch <= ((chunkPitch*43)>>>24) + curPitch;
+      curRoll <= ((chunkRoll*43)>>>24) + curPitch;
+      curYaw <= ((chunkYaw*43)>>>24) + curPitch;
+      $display("ChunkYaw=%d", chunkYaw);
+      $display("CurYaw=%d", curYaw);
+      $display("Calculation=%d", ((chunkYaw*43)>>>32));
+    end else if (counter == 10000000) begin
       if (curPitch < 0) begin
-        pitch <= curPitch + 360;
-      end else if (curPitch >= 360) begin
-        pitch <= curPitch - 360;
-      end else begin
-        pitch <= curPitch;
+        curPitch <= curPitch + (360 << 8);
+      end else if (curPitch > (360 << 8)) begin
+        curPitch <= curPitch - (360 << 8);
       end
       if (curRoll < 0) begin
-        roll <= curRoll + 360;
-      end else if (curRoll >= 360) begin
-        roll <= curRoll - 360;
-      end else begin
-        roll <= curRoll;
+        curRoll <= curRoll + (360 << 8);
+      end else if (curRoll > (360 << 8)) begin
+        curRoll <= curRoll - (360 << 8);
       end
       if (curYaw < 0) begin
-        yaw <= curYaw + 360;
-      end else if (curYaw >= 360) begin
-        yaw <= curYaw - 360;
-      end else begin
-        yaw <= curYaw;
+        curYaw <= curYaw + (360 << 8);
+      end else if (curYaw >= (360 << 8)) begin
+        curYaw <= curYaw - (360 << 8);
       end
-      
+    end else if (counter > 10000000) begin
+      pitch <= curPitch >>> 8;
+      roll <= curRoll >>> 8;
+      yaw <= curYaw >>> 8;
       counter <= 0;
-      curPitch <= 0;
-      curRoll <= 0;
-      curYaw <= 0;
+      chunkPitch <= 0;
+      chunkRoll <= 0;
+      chunkYaw <= 0;
     end else begin
-      curPitch <= curPitch + gy;
-      curRoll <= curRoll + gx;
-      curYaw <= curYaw + gz;
+      chunkPitch <= chunkPitch + (gy >>> 8);
+      chunkRoll <= chunkRoll + (gx >>> 8);
+      chunkYaw <= chunkYaw + (gz >>> 8);
     end
   end
 end  
 endmodule
 
-module view_output (
+
+
+module view_output_simple (
   input wire clk_100mhz,
   input wire rst_in,
   input wire [8:0] pitch,
   input wire [8:0] roll,
   input wire [8:0] yaw,
   // Calculates all three vectors
-  output logic [31:0] x_forward,
-  output logic [31:0] y_forward,
-  output logic [31:0] z_forward,
-  output logic [31:0] x_up,
-  output logic [31:0] y_up,
-  output logic [31:0] z_up,
-  output logic [31:0] x_right,
-  output logic [31:0] y_right,
-  output logic [31:0] z_right
+  output logic signed [31:0] x_forward,
+  output logic signed [31:0] y_forward,
+  output logic signed [31:0] z_forward,
+  output logic signed [31:0] x_up,
+  output logic signed [31:0] y_up,
+  output logic signed [31:0] z_up,
+  output logic signed [31:0] x_right,
+  output logic signed [31:0] y_right,
+  output logic signed [31:0] z_right
   ); 
 
-
-// Values for forward_vector
-logic [8:0] x_forward_val1, x_forward_val2, y_forward_val, z_forward_val1, z_forward_val2;
-logic [31:0] x_forward1, x_forward2, y_forward1, z_forward1, z_forward2;
-logic x_forward_go1, x_forward_go2, y_forward_go, z_forward_go1, z_forward_go2;
-logic x_forward_done1, x_forward_done2, y_forward_done, z_forward_done1, z_forward_done2;
-// Values for up vector
-logic [8:0] x_up_val1, x_up_val2, y_up_val, z_up_val1, z_up_val2;
-logic [31:0] x_up1, x_up2, y_up1, y_up2, z_up1, z_up2;
-logic x_up_go1, x_up_go2, y_up_go, z_up_go1, z_up_go2;
-logic x_up_done1, x_up_done2, y_up_done, z_up_done1, z_up_done2;
-// Values for right vector
-logic [8:0] x_right_val, z_right_val;
-logic [31:0] x_right1, z_right1;
-logic x_right_go, z_right_go;
-logic x_right_done, z_right_done;
-
+logic signed [31:0] pitch_cos, pitch_sin, roll_cos, roll_sin, yaw_cos, yaw_sin;;
 
 // Trigonometry calculations for forward vector
 cosine cos_x_forward(
-  .start(x_forward_go1),
-  .value(x_forward_val1),
+  .start(1),
+  .value(pitch),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_forward1),
-  .done(x_forward_done1)
+  .amp_out(pitch_cos)
 );
 
 sine sin_x_forward(
-  .start(x_forward_go2),
-  .value(x_forward_val2),
+  .start(1),
+  .value(pitch),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(x_forward2),
-  .done(x_forward_done2)
+  .amp_out(pitch_sin)
 );
 
-sine sin_y_forward(
-  .start(y_forward_go),
-  .value(y_forward_val),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(y_forward1),
-  .done(y_forward_done)
-);
-
-cosine cos_z_forward1(
-  .start(z_forward_go1),
-  .value(z_forward_val1),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(z_forward1),
-  .done(z_forward_done1)
-);
-
-cosine cos_z_forward2(
-  .start(z_forward_go2),
-  .value(z_forward_val2),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(z_forward2),
-  .done(z_forward_done2)
-);
-
-// Trigonometry calculations for up vector
-cosine cos_x_up(
-  .start(x_up_go1),
-  .value(x_up_val1),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(x_up1),
-  .done(x_up_done1)
-);
-sine sin_x_up(
-  .start(x_up_go2),
-  .value(x_up_val2),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(x_up2),
-  .done(x_up_done2)
-);
-
-cosine cos_y_up(
-  .start(y_up_go),
-  .value(y_up_val),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(y_up1),
-  .done(y_up_done)
-);
-
-sine sin_z_up(
-  .start(z_up_go1),
-  .value(z_up_val1),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(z_up1),
-  .done(z_up_done1)
-);
-
-cosine cos_z_up(
-  .start(z_up_go2),
-  .value(z_up_val2),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(z_up2),
-  .done(z_up_done2)
-);
-
-// Trigonometry calculations for right vector
-
-cosine cos_x_right(
-  .start(x_right_go),
-  .value(x_right_val),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(x_right1),
-  .done(x_right_done)
-);
-
-sine sin_z_right(
-  .start(z_right_go),
-  .value(z_right_val),
-  .clk_in(clk_100mhz),
-  .rst_in(rst_in),
-  .amp_out(z_right1),
-  .done(z_right_done)
-);
-
-logic state; // 0 = UPDATING, 1= CALCULATING
-logic [0:7] sin_x_1, sin_x_2, sin_y_1, sin_y_2, sin_z_1; 
-logic x_forward1_complete, x_forward2_complete, y_forward_complete, z_forward1_complete, z_forward2_complete;
-logic x_up1_complete, x_up2_complete, y_up_complete, z_up1_complete, z_up2_complete;
-logic x_right_complete, z_right_complete;
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
-    state <= 0;
-    x_forward_go1 <= 0;
-    x_forward_go2 <= 0;
-    y_forward_go <= 0;
-    z_forward_go1 <= 0;
-    z_forward_go2 <= 0;
   end else begin 
-    case(state)
-      1'b0: begin
-        // Updates angles
-        x_forward_val1 <= pitch;
-        x_forward_val2 <= yaw;
-        y_forward_val <= pitch;
-        z_forward_val1 <= pitch;
-        z_forward_val2 <= yaw;
+    x_forward <= pitch_sin;
+    y_forward <= 0;
+    z_forward <= pitch_cos;
+    x_right <= pitch_cos;
+    y_right <= 0;
+    z_right <= -pitch_sin;
 
-        // Starts calculation
-        x_forward_go1 <= 1;
-        x_forward_go2 <= 1;
-        y_forward_go <= 1;
-        z_forward_go1 <= 1;
-        z_forward_go2 <= 1;
-
-        // Updates angles
-        x_up_val1 <= pitch;
-        x_up_val2 <= yaw;
-        y_up_val <= pitch;
-        z_up_val1 <= pitch;
-        z_up_val2 <= yaw;
-
-        // Starts calculation
-        x_up_go1 <= 1;
-        x_up_go2 <= 1;
-        y_up_go <= 1;
-        z_up_go1 <= 1;
-        z_up_go2 <= 1;
-
-        // Updates angles
-        x_right_val <= yaw;
-        z_right_val <= yaw;
-        x_right_go <= 1;
-        z_right_go <= 1;
-
-        // Sends to calculating state 
-        state <= 1;
-      end 
-      1'b1: begin
-        // Saves finished calculations
-        if (x_forward_done1) begin
-          x_forward1_complete <= 1;
-          x_forward_go1 <= 0;
-        end 
-        if (x_forward_done2) begin 
-          x_forward2_complete <= 1;
-          x_forward_go2 <= 0;
-        end
-        if (y_forward_done) begin 
-          y_forward_complete <= 1;
-          y_forward_go <= 0;
-        end
-        if (z_forward_done1) begin 
-          z_forward1_complete <= 1;
-          z_forward_go1 <= 0;
-        end
-        if (z_forward_done2) begin 
-          z_forward2_complete <= 1;
-          z_forward_go2 <= 0;
-        end
-        if (x_up_done1) begin 
-          x_up1_complete <= 1;
-          x_up_go1 <= 0;
-        end
-        if (x_up_done2) begin 
-          x_up2_complete <= 1;
-          x_up_go2 <= 0;
-        end
-        if (y_up_done) begin 
-          y_up_complete <= 1;
-          y_up_go <= 0;
-        end
-        if (z_up_done1) begin 
-          z_up1_complete <= 1;
-          z_up_go1 <= 0;
-        end
-        if (z_up_done2) begin 
-          z_up2_complete <= 1;
-          z_up_go2 <= 0;
-        end
-        if (x_right_done) begin 
-          x_right_complete <= 1;
-          x_right_go <= 0;
-        end
-        if (z_right_done) begin 
-          z_right_complete <= 1;
-          z_right_go <= 0;
-        end
-        if (x_forward_done1 && x_forward_done2
-         && y_forward_done && z_forward_done1
-         && z_forward_done2 && x_up_done1 
-         && x_up_done2 && y_up_done 
-         && z_up_done1 && z_up_done2 
-         && x_right_done && z_right_done) begin 
-          x_forward <= mult(x_forward1,x_forward2); 
-          y_forward <= ~y_forward1 + 1;
-          z_forward <= mult(z_forward1,z_forward2);
-          x_up <= mult(x_up1,x_up2);
-          y_up <= y_up1;
-          z_up <= mult(z_up1,z_up2);
-          x_right <= x_right1;
-          y_right <= 0;
-          z_right <= ~z_right1 + 1;
-          state <= 0;
-        end
-      end 
-    endcase 
-  end 
-
+    x_up <= 0;
+    y_up <= 1 << 16;
+    z_up <= 0;
+  end
 end 
 endmodule
 

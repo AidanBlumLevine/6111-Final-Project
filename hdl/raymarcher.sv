@@ -108,7 +108,7 @@ module raymarcher
   output logic [$clog2(HEIGHT)-1:0] out_y,
   output logic pixel_done
 );
-  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING1=4, MARCHING2=5, CALC_NORMAL=6, SHADING=7, SHADING2=8} raymarcher_state;
+  typedef enum {PIXEL_DONE=0, INITIALIZING=1, AWAITING_SDF=2, NORMALIZING_RAY=3, MARCHING1=4, MARCHING2=5, CALC_NORMAL=6, SHADING=7, SHADING2=8, SHADING3=9, PREINIT=10} raymarcher_state;
   raymarcher_state state;
   always_comb begin
     pixel_done = state == PIXEL_DONE;
@@ -149,7 +149,7 @@ module raymarcher
   logic signed [BITS-1:0] ray_gen_in_x;
   logic signed [BITS-1:0] ray_gen_in_y;
   logic signed [BITS-1:0] ray_gen_in_z;
-  ray_gen_quick ray_gen_inst (
+  ray_gen ray_gen_inst (
     .clk_in(clk_in),
     .rst_in(rst_in),
     .ray_gen_start(ray_gen_start),
@@ -171,6 +171,10 @@ module raymarcher
   logic signed [BITS-1:0] dir_z;
 
   logic signed [BITS-1:0] light_fac;
+  logic signed [BITS-1:0] light_weight;
+  logic signed [BITS-1:0] tmp_x;
+  logic signed [BITS-1:0] tmp_y;
+  logic signed [BITS-1:0] tmp_z;
   localparam signed [BITS-1:0] light_x = to_fixed(28) >>> 5;
   localparam signed [BITS-1:0] light_y = to_fixed(11) >>> 5;
   localparam signed [BITS-1:0] light_z = to_fixed(-8) >>> 5;
@@ -181,13 +185,18 @@ module raymarcher
       state <= PIXEL_DONE;
     end else begin
       if(state == PIXEL_DONE && start_in) begin
-        state <= INITIALIZING;
-      end else if(state == INITIALIZING) begin
-        ray_gen_in_x <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_x) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_x) + camera_forward_x;
-        ray_gen_in_y <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_y) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_y) + camera_forward_y;
-        ray_gen_in_z <= mult(to_fixed(curr_x - (WIDTH>>1)), camera_u_z) + mult(to_fixed(curr_y - (HEIGHT>>1)), camera_v_z) + camera_forward_z;
+        state <= PREINIT;
+      end else if(state == PREINIT) begin
         out_x <= curr_x;
         out_y <= curr_y;
+        tmp_x <= to_fixed(curr_x - (WIDTH>>1));
+        tmp_y <= to_fixed(curr_y - (HEIGHT>>1));
+        state <= INITIALIZING;
+      end else if(state == INITIALIZING) begin
+        ray_gen_in_x <= mult(tmp_x, camera_u_x) + mult(tmp_y, camera_v_x) + camera_forward_x;
+        ray_gen_in_y <= mult(tmp_x, camera_u_y) + mult(tmp_y, camera_v_y) + camera_forward_y;
+        ray_gen_in_z <= mult(tmp_x, camera_u_z) + mult(tmp_y, camera_v_z) + camera_forward_z;
+        
         ray_gen_start <= 1;
         state <= NORMALIZING_RAY;
       end else if(state == NORMALIZING_RAY) begin
@@ -286,19 +295,23 @@ module raymarcher
       end else if (state == SHADING) begin
         ray_gen_start <= 0;
         if(~ray_gen_start && ray_gen_done) begin
-          light_fac <= mult(
-                        (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1,
-                        to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1))
-                      );
+          light_fac <= (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1;
+          light_weight <= to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1));
           state <= SHADING2;
         end
       end else if (state == SHADING2) begin
+          light_fac <= mult(light_fac, light_weight);
+          tmp_x <= (ray_gen_out_x + to_fixed(1)) << 7;
+          tmp_y <= (ray_gen_out_y + to_fixed(1)) << 7;
+          tmp_z <= (ray_gen_out_z + to_fixed(1)) << 7;
+          state <= SHADING3;
+      end else if (state == SHADING3) begin
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        color_out <= {clamp_color((mult((ray_gen_out_x + to_fixed(1)) << 7, light_fac)) >>> FIXED),
-                      clamp_color((mult((ray_gen_out_y + to_fixed(1)) << 7, light_fac)) >>> FIXED),
-                      clamp_color((mult((ray_gen_out_z + to_fixed(1)) << 7, light_fac)) >>> FIXED)};
+        color_out <= {clamp_color((mult(tmp_x, light_fac)) >>> FIXED),
+                      clamp_color((mult(tmp_y, light_fac)) >>> FIXED),
+                      clamp_color((mult(tmp_z, light_fac)) >>> FIXED)};
 
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
