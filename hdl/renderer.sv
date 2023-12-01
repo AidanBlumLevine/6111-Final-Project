@@ -15,15 +15,15 @@ module renderer
   output logic [7:0] green_out,
   output logic [7:0] blue_out,
   // ====================================
-  input wire signed [BITS-1:0] camera_u_x,
-  input wire signed [BITS-1:0] camera_u_y,
-  input wire signed [BITS-1:0] camera_u_z,
-  input wire signed [BITS-1:0] camera_v_x,
-  input wire signed [BITS-1:0] camera_v_y,
-  input wire signed [BITS-1:0] camera_v_z,
-  input wire signed [BITS-1:0] camera_forward_x,
-  input wire signed [BITS-1:0] camera_forward_y,
-  input wire signed [BITS-1:0] camera_forward_z
+  input wire signed [BITS-1:0] camera_u_x_raw,
+  input wire signed [BITS-1:0] camera_u_y_raw,
+  input wire signed [BITS-1:0] camera_u_z_raw,
+  input wire signed [BITS-1:0] camera_v_x_raw,
+  input wire signed [BITS-1:0] camera_v_y_raw,
+  input wire signed [BITS-1:0] camera_v_z_raw,
+  input wire signed [BITS-1:0] camera_forward_x_raw,
+  input wire signed [BITS-1:0] camera_forward_y_raw,
+  input wire signed [BITS-1:0] camera_forward_z_raw
 );
   logic [$clog2(WIDTH)-1:0] curr_x;
   logic [$clog2(HEIGHT)-1:0] curr_y;
@@ -31,6 +31,16 @@ module renderer
   logic [5:0] counter;
   logic [31:0] starting;
   logic [31:0] timer;
+
+  logic signed [BITS-1:0] camera_u_x;
+  logic signed [BITS-1:0] camera_u_y;
+  logic signed [BITS-1:0] camera_u_z;
+  logic signed [BITS-1:0] camera_v_x;
+  logic signed [BITS-1:0] camera_v_y;
+  logic signed [BITS-1:0] camera_v_z;
+  logic signed [BITS-1:0] camera_forward_x;
+  logic signed [BITS-1:0] camera_forward_y;
+  logic signed [BITS-1:0] camera_forward_z;
 
   logic pixel_done_1;
   logic [23:0] color_1;
@@ -53,10 +63,31 @@ module renderer
       curr_y <= 0;
       timer <= 0;
       starting <= 0;
+      camera_u_x <= camera_u_x_raw;
+      camera_u_y <= camera_u_y_raw;
+      camera_u_z <= camera_u_z_raw;
+      camera_v_x <= camera_v_x_raw;
+      camera_v_y <= camera_v_y_raw;
+      camera_v_z <= camera_v_z_raw;
+      camera_forward_x <= camera_forward_x_raw;
+      camera_forward_y <= camera_forward_y_raw;
+      camera_forward_z <= camera_forward_z_raw;
   end else if(pixel_done_1 && starting == 0) begin
       curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
       curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
-      timer <= timer + ((curr_x == WIDTH-1 && curr_y == HEIGHT-1) ? 1 : 0); 
+      if(curr_x == WIDTH-1 && curr_y == HEIGHT-1) begin
+        timer <= timer + 1;
+        // set camera vectors
+        camera_u_x <= camera_u_x_raw;
+        camera_u_y <= camera_u_y_raw;
+        camera_u_z <= camera_u_z_raw;
+        camera_v_x <= camera_v_x_raw;
+        camera_v_y <= camera_v_y_raw;
+        camera_v_z <= camera_v_z_raw;
+        camera_forward_x <= camera_forward_x_raw;
+        camera_forward_y <= camera_forward_y_raw;
+        camera_forward_z <= camera_forward_z_raw;
+      end
       starting <= 1;
     // end else if(pixel_done_2 && starting == 0) begin
     //   curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
@@ -89,7 +120,7 @@ module renderer
     .out_x(ray_out_x_1),
     .out_y(ray_out_y_1),
     // ====================================
-    .camera_x(0),
+    .camera_x(to_fixed(10)),
     .camera_y(0),
     .camera_z(to_fixed(100)),
     .camera_u_x(camera_u_x),

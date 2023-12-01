@@ -5,7 +5,7 @@ module tb_process_gyro;
   reg clk_100mhz;
   reg rst_in;
   reg [15:0] gx, gy, gz;
-  reg signed [31:0] pitch, roll, yaw;
+  reg [8:0] pitch, roll, yaw;
 
   // Instantiate the module
   process_gyro_simple dut (
@@ -35,15 +35,13 @@ module tb_process_gyro;
     #10;
     rst_in = 0;
 
-    gx = 4 << 8;
-    gy = 0 << 8;
-    gz = 0 <<< 8;
-    repeat (100) begin
-      gx = gx + (1 <<< 8);
-      #1000;
-      $display("Time=%0t, Pitch=%0d, Roll=%0d, Yaw=%0d", $time, pitch>>>16, roll>>>16, $signed(yaw>>>16));
+    gx = 1 << 8;
+    gy = 1 << 8;
+    gz = 2 << 8;
+    repeat (5) begin
+      #100010000;
+      $display("Time=%0t, Pitch=%0d, Roll=%0d, Yaw=%0d", $time, pitch, roll, yaw);
     end
-    $display("gx=%0d, gy=%0d, gz=%0d", gx>>>8, gy, gz);
 
     #10;
     $finish;
