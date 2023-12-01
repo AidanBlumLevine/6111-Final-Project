@@ -13,8 +13,8 @@ module process_gyro_simple(
     );
 
 logic [$clog2(10000000):0] counter;
-logic signed [41:0] chunkPitch, chunkRoll, chunkYaw; // 41.0 format, can fit 360 degrees per second constant reading (10000000 cycles)
-logic signed [15:0] curPitch, curRoll, curYaw; // 8.8 format
+logic signed [42:0] chunkPitch, chunkRoll, chunkYaw; // 42.0 format, can fit 360 degrees per second constant reading (10000000 cycles)
+logic signed [20:0] curPitch, curRoll, curYaw; // 12.8 format
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
@@ -43,12 +43,12 @@ always_ff @(posedge clk_100mhz) begin
     end else if (counter == 10000000) begin
       if (curPitch < 0) begin
         curPitch <= curPitch + (360 << 8);
-      end else if (curPitch >= (360 << 8)) begin
+      end else if (curPitch > (360 << 8)) begin
         curPitch <= curPitch - (360 << 8);
       end
       if (curRoll < 0) begin
         curRoll <= curRoll + (360 << 8);
-      end else if (curRoll >= (360 << 8)) begin
+      end else if (curRoll > (360 << 8)) begin
         curRoll <= curRoll - (360 << 8);
       end
       if (curYaw < 0) begin
