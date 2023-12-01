@@ -1,118 +1,132 @@
-module process_gyro(
+`timescale 1ns / 1ps
+`default_nettype none // prevents system from inferring an undeclared logic (good practice)
+
+module process_gyro_simple(
     input wire clk_100mhz,
     input wire rst_in,
-    input wire [0:15] gx, 
-    input wire [0:15] gy,
-    input wire [0:15] gz,
-    output reg [0:15] pitch,
-    output reg [0:15] roll,
-    output reg [0:15] yaw,
-    output reg ready 
+    input wire signed [15:0] gx, 
+    input wire signed [15:0] gy,
+    input wire signed [15:0] gz,
+    output reg [8:0] pitch,
+    output reg [8:0] roll,
+    output reg [8:0] yaw
     );
 
-assign half_pi = 32'b00000000000000011001001000011111
-logic counter;
-logic pitch_ready, roll_ready, yaw_ready;
-logic pitch_waiting, roll_waiting, yaw_waiting;
-logic [0:15] curPitch, curRoll, curYaw;
-logic [0:15] dPitch, dRoll, dYaw;
-logic [0:15] gx_used, gy_used, gz_used;
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-) divide1 (
-    .clk(clk_100mhz),
-    .a(gx_used),
-    .b(32'b01001110001000000000000000000000),
-    .val(dRoll)
-    );
-
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-) divide2 (
-    .clk(clk_100mhz),
-    .a(gy_used),
-    .b(32'b01001110001000000000000000000000),
-    .val(dPitch)
-    );
-
-div #(
-    .WIDTH(32),
-    .FBITS(16)
-  )
-  divide3 (
-    .clk(clk_100mhz),
-    .a(gz_used),
-    .b(32'b01001110001000000000000000000000),
-    .val(dYaw)
-    );
+logic [$clog2(10000000):0] counter;
+logic signed [42:0] chunkPitch, chunkRoll, chunkYaw; // 42.0 format, can fit 360 degrees per second constant reading (10000000 cycles)
+logic signed [20:0] curPitch, curRoll, curYaw; // 12.8 format
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
     curPitch <= 0;
     curRoll <= 0;
     curYaw <= 0;
+    chunkPitch <= 0;
+    chunkRoll <= 0;
+    chunkYaw <= 0;
     pitch <= 0;
     roll <= 0;
-    counter <= 0;
     yaw <= 0;
-    ready <= 0;
     counter <= 0;
   end else begin  
     counter <= counter + 1;
-    if (counter == 0) begin 
-      gx_used <= gx;
-      gy_used <= gy;
-      gz_used <= gz;
-      ready <= 0;
-    end else if (counter == 1000) begin 
-      curPitch <= pitch;
-      curRoll <= roll;
-      curYaw <= yaw;
-      pitch <= curPitch + dPitch;
-      roll <= curRoll + dRoll;
-      yaw <= curYaw + dYaw;
-      ready <= 1;
+    if (counter == 10000000 - 1) begin 
+      // divide current pitch, roll, yaw by 100000000  (100mHz)
+      // to do this, multiply by 43 (approx 1/100000000) (100mHz)
+      // and shift right by 32 + 0 - 8 because curPitch has 0 fractional bits and "43" has 32, and we want 8 in our answer
+      curPitch <= ((chunkPitch*43)>>>24) + curPitch;
+      curRoll <= ((chunkRoll*43)>>>24) + curPitch;
+      curYaw <= ((chunkYaw*43)>>>24) + curPitch;
+      $display("ChunkYaw=%d", chunkYaw);
+      $display("CurYaw=%d", curYaw);
+      $display("Calculation=%d", ((chunkYaw*43)>>>32));
+    end else if (counter == 10000000) begin
+      if (curPitch < 0) begin
+        curPitch <= curPitch + (360 << 8);
+      end else if (curPitch > (360 << 8)) begin
+        curPitch <= curPitch - (360 << 8);
+      end
+      if (curRoll < 0) begin
+        curRoll <= curRoll + (360 << 8);
+      end else if (curRoll > (360 << 8)) begin
+        curRoll <= curRoll - (360 << 8);
+      end
+      if (curYaw < 0) begin
+        curYaw <= curYaw + (360 << 8);
+      end else if (curYaw >= (360 << 8)) begin
+        curYaw <= curYaw - (360 << 8);
+      end
+    end else if (counter > 10000000) begin
+      pitch <= curPitch >>> 8;
+      roll <= curRoll >>> 8;
+      yaw <= curYaw >>> 8;
       counter <= 0;
+      chunkPitch <= 0;
+      chunkRoll <= 0;
+      chunkYaw <= 0;
+    end else begin
+      chunkPitch <= chunkPitch + (gy >>> 8);
+      chunkRoll <= chunkRoll + (gx >>> 8);
+      chunkYaw <= chunkYaw + (gz >>> 8);
     end
   end
 end  
 endmodule
 
-module view_output (
+
+
+module view_output_simple (
   input wire clk_100mhz,
   input wire rst_in,
-  input wire [0:15] pitch,
-  input wire [0:15] roll,
-  input wire [0:15] yaw,
-  output wire [0:31] x,
-  output wire [0:31] y,
-  output wire [0:31] z,
-  output wire [0:31] x_offset, 
-  output wire [0:31] y_offset,
-  output wire [0:31] z_offset
+  input wire [8:0] pitch,
+  input wire [8:0] roll,
+  input wire [8:0] yaw,
+  // Calculates all three vectors
+  output logic signed [31:0] x_forward,
+  output logic signed [31:0] y_forward,
+  output logic signed [31:0] z_forward,
+  output logic signed [31:0] x_up,
+  output logic signed [31:0] y_up,
+  output logic signed [31:0] z_up,
+  output logic signed [31:0] x_right,
+  output logic signed [31:0] y_right,
+  output logic signed [31:0] z_right
   ); 
 
-logic [0:7] sin_x_1, sin_x_2, sin_y_1, sin_y_2, sin_z_1; 
+logic signed [31:0] pitch_cos, pitch_sin, roll_cos, roll_sin, yaw_cos, yaw_sin;;
+
+// Trigonometry calculations for forward vector
+cosine cos_x_forward(
+  .start(1),
+  .value(pitch),
+  .clk_in(clk_100mhz),
+  .rst_in(rst_in),
+  .amp_out(pitch_cos)
+);
+
+sine sin_x_forward(
+  .start(1),
+  .value(pitch),
+  .clk_in(clk_100mhz),
+  .rst_in(rst_in),
+  .amp_out(pitch_sin)
+);
+
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
-    x <= 0;
-    y <= 0;
-    z <= 0;
-    x_offset <= 0;
-    y_offset <= 0;
-    z_offset <= 0;
-    sin_lut sine_1(
-      .clk_in(clk_100mhz),
-      .phase_in(),
-      .amp_out(sin_x_1)
-    );
   end else begin 
-    x <= sin; // x <= sin(yaw - pi/2)*sin(pitch - pi/2);
-    y <= roll; // y <= sin(yaw)*sin(pitch - pi/2);
-    z <= yaw; // z <= sin(pitch)
-  end 
+    x_forward <= pitch_sin;
+    y_forward <= 0;
+    z_forward <= pitch_cos;
+    x_right <= pitch_cos;
+    y_right <= 0;
+    z_right <= -pitch_sin;
 
+    x_up <= 0;
+    y_up <= 1 << 16;
+    z_up <= 0;
+  end
 end 
 endmodule
+
+`default_nettype wire

@@ -2,14 +2,14 @@
 `default_nettype none
 
 
-// VECTOR FUNCTIONS
+// // VECTOR FUNCTIONS
 
-// 3 dimensional vector structure
-typedef struct {
-    logic signed [BITS-1:0] x;
-    logic signed [BITS-1:0] y;
-    logic signed [BITS-1:0] z;
-} vec3;
+// // 3 dimensional vector structure
+// typedef struct {
+//     logic signed [BITS-1:0] x;
+//     logic signed [BITS-1:0] y;
+//     logic signed [BITS-1:0] z;
+// } vec3;
 
 // 3 dimensional vector subtraction
 function vec3 vec3_sub;
@@ -63,10 +63,36 @@ endfunction
 // function logic signed [BITS-1:0] sdBox;
 //     input vec3 p;
 //     input vec3 b;
-//     logic vec3 q;
 //     begin
-//         q = vec3_sub(abs_vec3(p) - b);
-//         sdBox = length_vec3(signed_maximum(length_vec3(q), 0)) + signed_minimum(signed_maximum(q.x, signed_maximum(q.y,q.z)),0);
+//         vec3_sub.x = a.x - b.x;
+//         vec3_sub.y = a.y - b.y;
+//         vec3_sub.z = a.z - b.z;
+//     end
+// endfunction
+
+// // Absolute value of number to run vector coords through
+// function logic signed [BITS-1:0] abs;
+//   input logic signed [BITS-1:0] a;
+//   begin
+//     abs = a[BITS-1] ? ~a + 1 : a;
+//   end
+// endfunction
+
+// // Produces a new vector of the absolute value of vector v
+// function vec3 abs_vec3;
+//     input vec3 v;
+//     begin 
+//         abs_vec3.x = abs(v.x);
+//         abs_vec3.y = abs(v.y);
+//         abs_vec3.z = abs(v.z);
+//     end
+// endfunction
+
+// // Uses Aidan's implementation of sqrt in hdl/math.sv to return the length of a vector
+// function logic [BITS-1:0] length_vec3;
+//     input vec3 v;
+//     begin
+//         length_vec3 = sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
 //     end
 // endfunction
 
@@ -99,29 +125,32 @@ function vec3 trans;
     end
 endfunction
 
-// function logic signed [BITS-1:0] map;
+// function vec3 trans;
 //     input vec3 p;
-//     logic [BITS-1:0] scale;
-//     logic vec3 half_vec;
+//     input logic [BITS-1:0] scale;
+//     logic vec3 scale_vec;
+//     logic signed [BITS-1:0] prev_x;
+//     logic signed [BITS-1:0] prev_y;
 //     begin
-//         scale = 260;
+//         scale_vec.x = scale;
+//         scale_vec.y = scale;
+//         scale_vec.z = scale;
 
-//         half_vec.x = .5;
-//         half_vec.y = .5;
-//         half_vec.z = .5;
+//         p = vec3_sub(abs_vec3(p), scale_vec);
+//         p.x = p.x * -1;
+//         p.y = p.y * -1;
+//         p.z = p.z * -1;
 
-//         p.x = p.x * scale;
-//         p.y = p.y * scale;
-//         p.z = p.z * scale;
+//         prev_x = p.x;
+//         p.x = ((p.x - p.y > 0.) ? p.y : p.x);
+//         p.y = ((prev_x - p.y > 0.) ? prev_x : p.y);
+//         prev_z = p.z;
+//         p.z = ((p.z - p.y > 0.) ? p.y : p.z);
+//         p.y = ((prev_z - p.y > 0.) ? prev_z : p.y);
 
-//         p = trans(p, 27*9);
-//         p = trans(p, 27*3);
-//         p = trans(p, 27);
-//         p = trans(p, 9);
-//         p = trans(p, 3);
-//         p = trans(p, 1);
+//         p.y = (abs(p.y-0.5*s)-0.5*s);
 
-//         return sdBox(p, half_vec)/scale - 0.0005;
+//         return p;    
 //     end
 // endfunction
 
@@ -148,60 +177,60 @@ module sdf (
   logic signed [BITS-1:0] sdBox;
   logic [BITS-1:0] length_q;
 
-  logic div_p_start;
-  logic div_p_done;
-  logic signed [BITS-1:0] div_p_out;
+//   logic div_p_start;
+//   logic div_p_done;
+//   logic signed [BITS-1:0] div_p_out;
 
-  logic div_b_start;
-  logic div_b_done;
-  logic signed [BITS-1:0] div_b_in;
-  logic signed [BITS-1:0] div_b_out;
+//   logic div_b_start;
+//   logic div_b_done;
+//   logic signed [BITS-1:0] div_b_in;
+//   logic signed [BITS-1:0] div_b_out;
 
-  logic sqrt_start;
-  logic sqrt_done;
-  logic signed [BITS-1:0] sqrt_in;
-  logic signed [BITS-1:0] sqrt_out;
+//   logic sqrt_start;
+//   logic sqrt_done;
+//   logic signed [BITS-1:0] sqrt_in;
+//   logic signed [BITS-1:0] sqrt_out;
 
-  always_comb begin
-    sdf_done = state == DONE;
-  end
+//   always_comb begin
+//     sdf_done = state == DONE;
+//   end
 
-  sqrt #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) sqrt_inst (
-    .clk(clk_in),
-    .start(sqrt_start),
-    .rad(sqrt_in),
-    .root(sqrt_out),
-    .valid(sqrt_done)
-  );
+//   sqrt #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) sqrt_inst (
+//     .clk(clk_in),
+//     .start(sqrt_start),
+//     .rad(sqrt_in),
+//     .root(sqrt_out),
+//     .valid(sqrt_done)
+//   );
 
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) divp (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_p_start),
-    .a(p_scale),
-    .b(to_fixed(3)),
-    .done(div_p_done),
-    .val(div_p_out)
-  );
+//   div #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) divp (
+//     .clk(clk_in),
+//     .rst(rst_in),
+//     .start(div_p_start),
+//     .a(p_scale),
+//     .b(to_fixed(3)),
+//     .done(div_p_done),
+//     .val(div_p_out)
+//   );
 
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) div_box (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_b_start),
-    .a(div_b_in),
-    .b(scale - to_fixed(0.0005)),
-    .done(div_b_done),
-    .val(div_b_out)
-  );
+//   div #(
+//     .WIDTH(BITS),
+//     .FBITS(FIXED)
+//   ) div_box (
+//     .clk(clk_in),
+//     .rst(rst_in),
+//     .start(div_b_start),
+//     .a(div_b_in),
+//     .b(scale - to_fixed(0.0005)),
+//     .done(div_b_done),
+//     .val(div_b_out)
+//   );
 
   assign sdf_red_out = 8'hF0;
   assign sdf_green_out = 8'h00;

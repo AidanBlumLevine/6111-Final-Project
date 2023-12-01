@@ -15,15 +15,18 @@ module top_level(
   output logic [2:0] hdmi_tx_n, //hdmi output signals (negatives) (blue, green, red)
   output logic hdmi_clk_p, hdmi_clk_n //differential hdmi clock
   );
-  manta manta_inst (
-    .clk(clk_100mhz),
 
-    .rx(uart_rxd),
-    .tx(uart_txd),
+  logic clk_100mhz_buffed;
+  BUFG mbf (.I(clk_100mhz), .O(clk_100mhz_buffed));
+  // manta manta_inst (
+  //   .clk(clk_100mhz_buffed),
+
+  //   .rx(uart_rxd),
+  //   .tx(uart_txd),
     
-    .gx(gx), 
-    .gy(gy), 
-    .gz(gz));
+  //   .gx(camera_forward_x), 
+  //   .gy(camera_forward_y), 
+  //   .gz(camera_forward_z));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
@@ -40,7 +43,7 @@ module top_level(
   hdmi_clk_wiz_720p mhdmicw (
       .reset(0),
       .locked(locked),
-      .clk_ref(clk_100mhz),
+      .clk_ref(clk_100mhz_buffed),
       .clk_pixel(clk_pixel),
       .clk_tmds(clk_5x));
 
@@ -67,6 +70,15 @@ module top_level(
 
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
+  logic signed [32-1:0] camera_up_x;
+  logic signed [32-1:0] camera_up_y;
+  logic signed [32-1:0] camera_up_z;
+  logic signed [32-1:0] camera_right_x;
+  logic signed [32-1:0] camera_right_y;
+  logic signed [32-1:0] camera_right_z;
+  logic signed [32-1:0] camera_forward_x;
+  logic signed [32-1:0] camera_forward_y;
+  logic signed [32-1:0] camera_forward_z;
   renderer #(
     .WIDTH(320),
     .HEIGHT(180)
@@ -77,7 +89,16 @@ module top_level(
     .vcount_in(vcount >> 2),
     .red_out(red),
     .green_out(green),
-    .blue_out(blue)
+    .blue_out(blue),
+    .camera_u_x_raw(camera_right_x),
+    .camera_u_y_raw(camera_right_y),
+    .camera_u_z_raw(camera_right_z),
+    .camera_v_x_raw(camera_up_x),
+    .camera_v_y_raw(camera_up_y),
+    .camera_v_z_raw(camera_up_z),
+    .camera_forward_x_raw((~camera_forward_x + 1) <<< 7),
+    .camera_forward_y_raw((~camera_forward_y + 1) <<< 7),
+    .camera_forward_z_raw((~camera_forward_z + 1) <<< 7) // *128 scaling here is how far the projection plane 
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
@@ -128,38 +149,51 @@ module top_level(
 
   // Generates a 50mhz clk
   logic clk_50MHz;
-  always @(posedge clk_100mhz) begin
+  always @(posedge clk_100mhz_buffed) begin
       clk_50MHz <= ~clk_50MHz;
   end
   // Gyroscope interface
-  logic [15:0] gx, gy, gz;
-  mpu_rg mpu6050(
-      .CLOCK_50(clk_50MHz),
-      .en(1'b1),
-      .reset_n(~sys_rst),
-      .I2C_SDAT(pmodb[1]),
-      .I2C_SCLK(pmodb[2]),
-      .gx(gx),
-      .gy(gy),
-      .gz(gz)
+  // logic [15:0] gx, gy, gz;
+  // mpu_rg mpu6050(
+  //     .CLOCK_50(clk_50MHz),
+  //     .en(1'b1),
+  //     .reset_n(~sys_rst),
+  //     .I2C_SDAT(pmodb[1]),
+  //     .I2C_SCLK(pmodb[2]),
+  //     .gx(gx),
+  //     .gy(gy),
+  //     .gz(gz)
+  // );
+
+  logic [8:0] pitch, roll, yaw;
+  // // Processing output from gyroscope
+  process_gyro_simple gyro_process(
+      .clk_100mhz(clk_100mhz_buffed),
+      .rst_in(sys_rst),
+      .gx(45 << 8),
+      .gy(45 << 8),
+      .gz(45 << 8),
+      .pitch(pitch),
+      .roll(roll),
+      .yaw(yaw)
   );
 
-  logic [15:0] pitch, roll, yaw;
-  logic gyro_done; 
-  // Processing output from gyroscope
-  process_gyro gyro_process(
-      .clk_100mhz(clk_100mhz),
+  view_output_simple vi(
+      .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .gx(gx),
-      .gy(gy),
-      .gz(gz),
       .pitch(pitch),
       .roll(roll),
       .yaw(yaw),
-      .ready(gyro_done)
-  );
-
-
+      .x_forward(camera_forward_x),
+      .y_forward(camera_forward_y),
+      .z_forward(camera_forward_z),
+      .x_up(camera_up_x),
+      .y_up(camera_up_y),
+      .z_up(camera_up_z),
+      .x_right(camera_right_x),
+      .y_right(camera_right_y),
+      .z_right(camera_right_z)
+  ); 
 endmodule // top_level
 
 `default_nettype wire
