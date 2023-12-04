@@ -153,26 +153,26 @@ module top_level(
       clk_50MHz <= ~clk_50MHz;
   end
   // Gyroscope interface
-  // logic [15:0] gx, gy, gz;
-  // mpu_rg mpu6050(
-  //     .CLOCK_50(clk_50MHz),
-  //     .en(1'b1),
-  //     .reset_n(~sys_rst),
-  //     .I2C_SDAT(pmodb[1]),
-  //     .I2C_SCLK(pmodb[2]),
-  //     .gx(gx),
-  //     .gy(gy),
-  //     .gz(gz)
-  // );
+  logic [15:0] gx, gy, gz;
+  mpu_rg mpu6050(
+      .CLOCK_50(clk_50MHz),
+      .en(1'b1),
+      .reset_n(~sys_rst),
+      .I2C_SDAT(pmodb[1]),
+      .I2C_SCLK(pmodb[2]),
+      .gx(gx),
+      .gy(gy),
+      .gz(gz)
+  );
 
   logic [8:0] pitch, roll, yaw;
   // // Processing output from gyroscope
   process_gyro_simple gyro_process(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .gx(45 << 8),
-      .gy(45 << 8),
-      .gz(45 << 8),
+      .gx(gx),
+      .gy(gy),
+      .gz(gz),
       .pitch(pitch),
       .roll(roll),
       .yaw(yaw)
