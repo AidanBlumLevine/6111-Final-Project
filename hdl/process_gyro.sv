@@ -65,9 +65,9 @@ always_ff @(posedge clk_100mhz) begin
       chunkRoll <= 0;
       chunkYaw <= 0;
     end else begin
-      chunkPitch <= chunkPitch + (gy >>> 8);
-      chunkRoll <= chunkRoll + (gx >>> 8);
-      chunkYaw <= chunkYaw + (gz >>> 8);
+      chunkPitch <= chunkPitch + (gy >>> 5);
+      chunkRoll <= chunkRoll + (gx >>> 5);
+      chunkYaw <= chunkYaw + (gz >>> 5);
     end
   end
 end  
@@ -81,6 +81,7 @@ module view_output_simple (
   input wire [8:0] pitch,
   input wire [8:0] roll,
   input wire [8:0] yaw,
+  input wire start, 
   // Calculates all three vectors
   output logic signed [31:0] x_forward,
   output logic signed [31:0] y_forward,
@@ -90,41 +91,230 @@ module view_output_simple (
   output logic signed [31:0] z_up,
   output logic signed [31:0] x_right,
   output logic signed [31:0] y_right,
-  output logic signed [31:0] z_right
+  output logic signed [31:0] z_right,
+  output wire done
   ); 
 
-logic signed [31:0] pitch_cos, pitch_sin, roll_cos, roll_sin, yaw_cos, yaw_sin;;
+logic sine1_done, sine2_done;
+logic [8:0] sine1_value, sine2_value;
+logic signed [31:0] sine1_out, sine2_out;
 
-// Trigonometry calculations for forward vector
-cosine cos_x_forward(
+logic signed [31:0] x_forward_temp, y_forward_temp, z_forward_temp;
+logic signed [31:0] x_right_temp, y_right_temp, z_right_temp;
+logic signed [31:0] x_up_temp, y_up_temp, z_up_temp;
+
+typedef enum { UPDATING_VALUES, CALCULATING, DONE } trig_calc_state;
+typedef enum { IDLE, FORWARD, UP, RIGHT, DONE } vector_type_state;
+typedef enum { X, Y, Z } vector_axis_state;
+vector_type_state vector_type;
+vector_axis_state vector_axis;
+trig_calc_state trig_calc;
+
+// Trigonometry functions 
+sine sine1(
   .start(1),
-  .value(pitch),
+  .value(sine1_value),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(pitch_cos)
+  .done(sine1_done),
+  .amp_out(sine1_out)
 );
 
-sine sin_x_forward(
+sine sine2(
   .start(1),
-  .value(pitch),
+  .value(sine2_value),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
-  .amp_out(pitch_sin)
+  .done(sine2_done),
+  .amp_out(sine2_out)
 );
+
+always_comb begin
+    done = (state == DONE);
+end
 
 always_ff @(posedge clk_100mhz) begin 
   if (rst_in) begin 
+    vector_type <= FORWARD;
+    vector_axis <= X;
+    trig_calc <= UPDATING_VALUES;
   end else begin 
-    x_forward <= pitch_sin;
-    y_forward <= 0;
-    z_forward <= pitch_cos;
-    x_right <= pitch_cos;
-    y_right <= 0;
-    z_right <= -pitch_sin;
-
-    x_up <= 0;
-    y_up <= 1 << 16;
-    z_up <= 0;
+    case (vector_type)
+      IDLE: begin
+        (start)? vector_type <= FORWARD : vector_type <= IDLE;
+      end   
+      FORWARD: begin
+        case(vector_axis)
+          X: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch - 90;
+                sine2_value <= yaw;
+                trig_calc <= CALCULATING;
+              end 
+              CALCULATING: begin 
+                if (sine1_done && sine2_done) begin 
+                  x_forward_temp <= mult(sine1_out, sine2_out);
+                end   
+              end 
+              DONE: begin 
+                vector_axis <= Y;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end 
+          Y: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch; 
+              end 
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  y_forward_temp <= mult(-1, sine1_out);
+                end 
+              end 
+              DONE: begin 
+                vector_axis <= Z;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end
+          Z: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch - 90;
+                sine2_value <= yaw - 90;
+                trig_calc <= CALCULATING;
+              end 
+              CALCULATING: begin 
+                if (sine1_done && sine2_done) begin 
+                  z_forward_temp <= mult(sine1_out, sine2_out);
+                end
+              end 
+              DONE: begin 
+                vector_type <= UP;  
+                vector_axis <= X;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end
+        endcase 
+      end 
+      UP: begin
+        case(vector_axis)
+          X: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch;
+                sine2_value <= yaw;
+                trig_calc <= CALCULATING;
+              end 
+              CALCULATING: begin 
+                if (sine1_done && sine2_done) begin 
+                  x_up_temp <= mult(sine1_out, sine2_out);
+                end   
+              end 
+              DONE: begin 
+                vector_axis <= Y;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end 
+          Y: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch - 90; 
+              end 
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  y_up_temp <= mult(-1, sine1_out);
+                end 
+              end 
+              DONE: begin 
+                vector_axis <= Z;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end
+          Z: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= pitch;
+                sine2_value <= yaw - 90;
+                trig_calc <= CALCULATING;
+              end 
+              CALCULATING: begin 
+                if (sine1_done && sine2_done) begin 
+                  z_up_temp <= mult(sine1_out, sine2_out);
+                end
+              end 
+              DONE: begin 
+                vector_type <= UP;  
+                vector_axis <= X;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end
+        endcase 
+      end
+      RIGHT: begin
+        case(vector_axis)
+          X: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= yaw - 90;
+              end 
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  x_right_temp <= sine1_out;
+                end   
+              end 
+              DONE: begin 
+                vector_axis <= Y;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end 
+          Y: begin
+            y_right_temp <= 0;
+            vector_axis <= Z;
+            trig_calc <= UPDATING_VALUES;
+          end
+          Z: begin
+            case(trig_calc) 
+              UPDATING_VALUES: begin 
+                sine1_value <= yaw;
+                trig_calc <= CALCULATING;
+              end 
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  z_right_temp <= mult(-1, sine1_out);
+                end
+              end 
+              DONE: begin 
+                vector_type <= UP;  
+                vector_axis <= X;
+                trig_calc <= UPDATING_VALUES;
+              end
+            endcase
+          end
+        endcase 
+      end
+    DONE: begin 
+      x_forward <= x_forward_temp;
+      y_forward <= y_forward_temp;
+      z_forward <= z_forward_temp;
+      x_up <= x_up_temp;
+      y_up <= y_up_temp;
+      z_up <= z_up_temp;
+      x_right <= x_right_temp;
+      y_right <= y_right_temp;
+      z_right <= z_right_temp;
+      vector_axis <= X;
+      vector_type <= IDLE;
+      trig_calc <= UPDATING_VALUES;
+    end 
+    endcase
   end
 end 
 endmodule
