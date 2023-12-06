@@ -120,9 +120,9 @@ module renderer
     .out_x(ray_out_x_1),
     .out_y(ray_out_y_1),
     // ====================================
-    .camera_x(to_fixed(10)),
+    .camera_x(to_fixed(0)),
     .camera_y(0),
-    .camera_z(to_fixed(100)),
+    .camera_z(to_fixed(150)),
     .camera_u_x(camera_u_x),
     .camera_u_y(camera_u_y),
     .camera_u_z(camera_u_z),

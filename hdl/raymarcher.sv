@@ -80,7 +80,7 @@ module raymarcher
   parameter HEIGHT = 720,
   parameter MAX_STEPS = 100,
   parameter signed [BITS-1:0] MAX_DIST_MANHATTEN = 1'b1 << (BITS - 7),
-  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 3) // .0001
+  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 5)
 )
 (
   input wire clk_in,
@@ -204,8 +204,8 @@ module raymarcher
       end else if(state == PREINIT) begin
         out_x <= curr_x;
         out_y <= curr_y;
-        tmp_x <= to_fixed(curr_x - (WIDTH>>1));
-        tmp_y <= to_fixed(curr_y - (HEIGHT>>1));
+        tmp_x <= to_fixed(curr_x - (WIDTH>>1)) >>> 1;
+        tmp_y <= to_fixed(curr_y - (HEIGHT>>1)) >>> 1;
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
         ray_gen_in_x <= mult(tmp_x, camera_u_x) + mult(tmp_y, camera_v_x) + camera_forward_x;
@@ -231,6 +231,8 @@ module raymarcher
       end else if(state == AWAITING_SDF) begin
         sdf_start <= 0;
         if (sdf_done) begin
+          $display("ray_x: %d, ray_y: %d, ray_z: %d", ray_x>>>16, ray_y>>>16, ray_z>>>16);
+          $display("sdf_out: %d", sdf_out >>> 16);
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             normal_base_dist <= sdf_out;
             color_out <= {sdf_red_out, sdf_green_out, sdf_blue_out};
@@ -285,7 +287,7 @@ module raymarcher
         end
       end else if (state == CALC_NORMAL) begin
         if(~sdf_start && sdf_done) begin 
-          if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
+          if(abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 for a more generous color
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
             color_out <= {8'h00, 8'hFF, 8'hFF};

@@ -7,7 +7,7 @@ module tb_menger;
   logic rst_in;
   logic sdf_start;
   logic sdf_done;
-  logic [31:0] sdf_out;
+  logic signed [31:0] sdf_out;
   logic [31:0] ray_x;
   logic [31:0] ray_y;
   logic [31:0] ray_z;
@@ -46,16 +46,16 @@ module tb_menger;
     rst_in=0;
     #30;
 
-    ray_x = to_fixed(10);
-    ray_y = to_fixed(15);
-    ray_z = to_fixed(5);
+    ray_x = to_fixed(0);
+    ray_y = to_fixed(0);
+    ray_z = to_fixed(23);
     sdf_start = 1;
 
     while(!sdf_done)begin
       #30;
     end
     sdf_start = 0;
-    $display("SDF OUT:",sdf_out);
+    $display("SDF OUT:",$signed(sdf_out) >>> 16);
     #30;
     
     // ray_x = to_fixed(100);

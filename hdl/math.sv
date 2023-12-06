@@ -250,7 +250,7 @@ module div #(
             end
             default: begin  // IDLE
                 if (start) begin
-                    $display("start %d / %d", a>>>16, b>>>16);
+                    // $display("start %d / %d", a>>>16, b>>>16);
                     valid <= 0;
                     if (b == 0) begin  // divide by zero
                         state <= IDLE;
