@@ -157,7 +157,6 @@ module menger_sdf (
   assign sdf_blue_out = 8'b0;
   
   always_ff @(posedge clk_in) begin
-    // $display("div status %d %d %d", div_b_start, div_b_done, div_b_valid);
     if(rst_in) begin
       state <= IDLE;
       sqrt_start <= 0;
@@ -174,14 +173,9 @@ module menger_sdf (
           half_vec.z <= 1<<<15;
           p_scale <= to_fixed(27);
           state <= INIT_P;
-          $display("starting with ", x>>>16, y>>>16, z>>>16);
-          // guh.x <= to_fixed(10*25);
-          // guh.y <= to_fixed(15*25);
-          // guh.z <= to_fixed(5*25);
         end 
       end
       INIT_P: begin
-        // guh <= trans(guh,to_fixed(27));
         p.x <= mult(x, scale);
         p.y <= mult(y, scale);
         p.z <= mult(z, scale);
@@ -194,7 +188,6 @@ module menger_sdf (
         state <= TRANS;
       end
       TRANS: begin
-        // $display("GUH: ",guh.x,guh.y,guh.z);
         p <= trans(p, p_scale);
         if(p_scale <= to_fixed(1.1))begin
           state <= WAIT3;
@@ -210,7 +203,6 @@ module menger_sdf (
         state <= TRANS_PREP;
       end
       WAIT3: begin
-        // $display("P: ", p.x, p.y, p.z);
         p <= abs_vec3(p);
         state <= INIT_Q;
       end
@@ -242,7 +234,6 @@ module menger_sdf (
         endcase
       end
       MULT: begin
-        // $display("SQUIRT: ",sqrt_in);
         sqrt_start <= 1;
         state <= LEN_Q;
       end
@@ -266,13 +257,10 @@ module menger_sdf (
         state <= SDF_BOX;
       end
       SDF_BOX: begin
-        $display("AAAAAA:  ", length_q, min_q_0);
         sdBox <= length_q + min_q_0;
-        // $display("SDBOX: ",length_q);
         state <= DIV_PREP;
       end
       DIV_PREP: begin
-        $display("div prep: ", sdBox, scale);
         div_b_in <= sdBox;
         div_b_start <= 1;
         state <= WAIT2;
@@ -284,7 +272,6 @@ module menger_sdf (
       FINAL_DIV: begin
         if (div_b_done && div_b_valid) begin
           sdf_out <= div_b_out;
-          $display("div out: ", div_b_out>>>16);
           state <= DONE;
         end
       end 
