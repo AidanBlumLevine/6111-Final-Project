@@ -177,25 +177,25 @@ module top_level(
   //     .gz(gz)
   // );
 
-//   logic [8:0] pitch, roll, yaw;
-  // // Processing output from gyroscope
-//   process_gyro_simple gyro_process(
-//       .clk_100mhz(clk_100mhz_buffed),
-//       .rst_in(sys_rst),
-//       .gx(45 << 8),
-//       .gy(45 << 8),
-//       .gz(45 << 8),
-//       .pitch(pitch),
-//       .roll(roll),
-//       .yaw(yaw)
-//   );
+  logic [8:0] pitch, roll, yaw;
+  // Processing output from gyroscope
+  process_gyro_simple gyro_process(
+      .clk_100mhz(clk_100mhz_buffed),
+      .rst_in(sys_rst),
+      .gx(3 << 8),
+      .gy(3 << 8),
+      .gz(3 << 8),
+      .pitch(pitch),
+      .roll(roll),
+      .yaw(yaw)
+  );
 
   view_output_simple vi(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .pitch(20),
-      .roll(20),
-      .yaw(20),
+      .pitch(pitch),
+      .roll(roll),
+      .yaw(yaw),
       .x_forward(camera_forward_x),
       .y_forward(camera_forward_y),
       .z_forward(camera_forward_z),
@@ -204,7 +204,8 @@ module top_level(
       .z_up(camera_up_z),
       .x_right(camera_right_x),
       .y_right(camera_right_y),
-      .z_right(camera_right_z)
+      .z_right(camera_right_z),
+      .start(1'b1)
   ); 
 endmodule // top_level
 

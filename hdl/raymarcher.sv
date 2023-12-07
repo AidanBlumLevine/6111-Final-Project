@@ -78,7 +78,7 @@ module raymarcher
 #(
   parameter WIDTH = 1280,
   parameter HEIGHT = 720,
-  parameter MAX_STEPS = 100,
+  parameter MAX_STEPS = 150,
   parameter signed [BITS-1:0] MAX_DIST_MANHATTEN = 1'b1 << (BITS - 7),
   parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 5)
 )
@@ -287,7 +287,7 @@ module raymarcher
         end
       end else if (state == CALC_NORMAL) begin
         if(~sdf_start && sdf_done) begin 
-          if(abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 for a more generous color
+          if(0 && abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 to fix rounding issues
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
             color_out <= {8'h00, 8'hFF, 8'hFF};
@@ -313,22 +313,22 @@ module raymarcher
         ray_gen_start <= 0;
         if(~ray_gen_start && ray_gen_done) begin
           light_fac <= (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1;
-          light_weight <= to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1));
+          light_weight <= to_fixed(1) - ((ray_dist >> 9) <= to_fixed(1) ? (ray_dist >> 9) : to_fixed(1)); // 2^9 is where it is solid black
           state <= SHADING2;
         end
       end else if (state == SHADING2) begin
           light_fac <= mult(light_fac, light_weight);
-          tmp_x <= (ray_gen_out_x + to_fixed(1)) << 7;
-          tmp_y <= (ray_gen_out_y + to_fixed(1)) << 7;
-          tmp_z <= (ray_gen_out_z + to_fixed(1)) << 7;
+          tmp_x <= (ray_gen_out_x + to_fixed(1)) << 6;
+          tmp_y <= (ray_gen_out_y + to_fixed(1)) << 6;
+          tmp_z <= (ray_gen_out_z + to_fixed(1)) << 6;
           state <= SHADING3;
       end else if (state == SHADING3) begin
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        color_out <= {clamp_color((mult(tmp_x, light_fac)) >>> FIXED),
-                      clamp_color((mult(tmp_y, light_fac)) >>> FIXED),
-                      clamp_color((mult(tmp_z, light_fac)) >>> FIXED)};
+        color_out <= {clamp_color((((mult(tmp_x, light_fac))) >>> FIXED) + 50),
+                      clamp_color((((mult(tmp_y, light_fac))) >>> FIXED) + 20),
+                      clamp_color((((mult(tmp_z, light_fac))) >>> FIXED) + 20)};
 
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);

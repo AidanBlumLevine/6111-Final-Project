@@ -37,7 +37,7 @@ module tb_process_gyro;
 
     gx = 1 << 8;
     gy = 1 << 8;
-    gz = 180 << 8;
+    gz = 1 << 8;
     repeat (10) begin
       #100010000;
       $display("Time=%0t, Pitch=%0d, Roll=%0d, Yaw=%0d", $time, pitch, roll, yaw);

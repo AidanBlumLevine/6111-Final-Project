@@ -39,7 +39,8 @@ always_ff @(posedge clk_100mhz) begin
       curYaw <= ((chunkYaw*43)>>>24) + curPitch;
       $display("ChunkYaw=%d", chunkYaw);
       $display("CurYaw=%d", curYaw);
-      $display("Calculation=%d", ((chunkYaw*43)>>>32));
+      $display("Calculation=%d", ((chunkYaw*43)>>>24));
+      $display("Yaw=%d", ((chunkYaw*43)>>>24) + curPitch);
     end else if (counter == 10000000) begin
       if (curPitch < 0) begin
         curPitch <= curPitch + (360 << 8);
@@ -57,6 +58,7 @@ always_ff @(posedge clk_100mhz) begin
         curYaw <= curYaw - (360 << 8);
       end
     end else if (counter > 10000000) begin
+      $display("yaw out", curYaw);
       pitch <= curPitch >>> 8;
       roll <= curRoll >>> 8;
       yaw <= curYaw >>> 8;

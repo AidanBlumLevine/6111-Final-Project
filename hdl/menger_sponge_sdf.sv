@@ -131,10 +131,6 @@ module menger_sdf (
     .root(sqrt_out),
     .valid(sqrt_done)
   );
-
-  assign sdf_red_out = 8'hF0;
-  assign sdf_green_out = 8'h0F;
-  assign sdf_blue_out = 8'b0;
   
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
@@ -150,6 +146,9 @@ module menger_sdf (
       IDLE: begin
         sdf_out <= 0;
         p_scale <= to_fixed(27);
+        sdf_red_out <= 8'h00;
+        sdf_green_out <= 8'h00;
+        sdf_blue_out <= 8'h00;
         if(sdf_start) begin
           state <= INIT_P;
         end 
