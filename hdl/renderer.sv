@@ -11,10 +11,11 @@ module renderer
   input wire rst_in,
   input wire [10:0] hcount_in,
   input wire [9:0] vcount_in,
-  output logic [7:0] red_out,
-  output logic [7:0] green_out,
-  output logic [7:0] blue_out,
+  output logic [7:0] color_out,
   // ====================================
+  input wire signed [BITS-1:0] camera_ori_x_raw,
+  input wire signed [BITS-1:0] camera_ori_y_raw,
+  input wire signed [BITS-1:0] camera_ori_z_raw,
   input wire signed [BITS-1:0] camera_u_x_raw,
   input wire signed [BITS-1:0] camera_u_y_raw,
   input wire signed [BITS-1:0] camera_u_z_raw,
@@ -32,6 +33,9 @@ module renderer
   logic [31:0] starting;
   logic [31:0] timer;
 
+  logic signed [BITS-1:0] camera_ori_x;
+  logic signed [BITS-1:0] camera_ori_y;
+  logic signed [BITS-1:0] camera_ori_z;
   logic signed [BITS-1:0] camera_u_x;
   logic signed [BITS-1:0] camera_u_y;
   logic signed [BITS-1:0] camera_u_z;
@@ -43,7 +47,7 @@ module renderer
   logic signed [BITS-1:0] camera_forward_z;
 
   logic pixel_done_1;
-  logic [23:0] color_1;
+  logic [7:0] color_1;
   logic [$clog2(WIDTH)-1:0] ray_out_x_1;
   logic [$clog2(HEIGHT)-1:0] ray_out_y_1;
 
@@ -63,6 +67,9 @@ module renderer
       curr_y <= 0;
       timer <= 0;
       starting <= 0;
+      camera_ori_x <= camera_ori_x_raw;
+      camera_ori_y <= camera_ori_y_raw;
+      camera_ori_z <= camera_ori_z_raw;
       camera_u_x <= camera_u_x_raw;
       camera_u_y <= camera_u_y_raw;
       camera_u_z <= camera_u_z_raw;
@@ -78,6 +85,9 @@ module renderer
       if(curr_x == WIDTH-1 && curr_y == HEIGHT-1) begin
         timer <= timer + 1;
         // set camera vectors
+        camera_ori_x <= camera_ori_x_raw;
+        camera_ori_y <= camera_ori_y_raw;
+        camera_ori_z <= camera_ori_z_raw;
         camera_u_x <= camera_u_x_raw;
         camera_u_y <= camera_u_y_raw;
         camera_u_z <= camera_u_z_raw;
@@ -120,9 +130,9 @@ module renderer
     .out_x(ray_out_x_1),
     .out_y(ray_out_y_1),
     // ====================================
-    .camera_x(to_fixed(0)),
-    .camera_y(0),
-    .camera_z(to_fixed(150)),
+    .camera_x(camera_ori_x),
+    .camera_y(camera_ori_y),
+    .camera_z(camera_ori_z),
     .camera_u_x(camera_u_x),
     .camera_u_y(camera_u_y),
     .camera_u_z(camera_u_z),
@@ -202,14 +212,14 @@ module renderer
   assign frame_addr = pixel_done_1 ? ray_out_x_1 + WIDTH * ray_out_y_1 : 0;
                       //(pixel_done_2 ? ray_out_x_2 + WIDTH * ray_out_y_2 : 0);
                       // (pixel_done_3 ? ray_out_x_3 + WIDTH * ray_out_y_3 : 0));
-  logic [23:0] frame_color;
+  logic [7:0] frame_color;
   assign frame_color = pixel_done_1 ? color_1 : 0;
                        //(pixel_done_2 ? color_2 : 0); 
                       //  (pixel_done_3 ? color_3 : 0));
 
-  logic [23:0] frame_buff_raw;
+  logic [7:0] frame_buff_raw;
   xilinx_true_dual_port_read_first_2_clock_ram #(
-    .RAM_WIDTH(24),
+    .RAM_WIDTH(8),
     .RAM_DEPTH(WIDTH * HEIGHT)
   ) frame_buffer (
     .addra(frame_addr),
@@ -230,10 +240,7 @@ module renderer
     .doutb(frame_buff_raw)
   );
 
-  assign red_out = in_frame ? frame_buff_raw[23:16] : hcount_in[7:0];
-  assign green_out = in_frame ? frame_buff_raw[15:8] : vcount_in[7:0];
-  assign blue_out = in_frame ? frame_buff_raw[7:0] : (hcount_in[7:0] + vcount_in[7:0]);
-
+  assign color_out = in_frame ? frame_buff_raw : 0;
 endmodule
 
 `default_nettype wire

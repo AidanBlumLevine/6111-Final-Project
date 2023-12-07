@@ -68,7 +68,7 @@ module top_level(
       .nf_out(new_frame),
       .fc_out(frame_count));
 
-  logic [7:0] red, green, blue; //red green and blue pixel values for output
+  logic [7:0] red, blue; //red green and blue pixel values for output
 
   logic clk_pixel_divided_buffed, clk_pixel_divided;
   BUFG mbf_clk_pixel_divided (.I(clk_pixel_divided), .O(clk_pixel_divided_buffed));
@@ -82,6 +82,9 @@ module top_level(
     end
   end
 
+  logic signed [32-1:0] camera_ori_x = 0;
+  logic signed [32-1:0] camera_ori_y = 0;
+  logic signed [32-1:0] camera_ori_z = 140 << 16;
   logic signed [32-1:0] camera_up_x;
   logic signed [32-1:0] camera_up_y;
   logic signed [32-1:0] camera_up_z;
@@ -91,6 +94,7 @@ module top_level(
   logic signed [32-1:0] camera_forward_x;
   logic signed [32-1:0] camera_forward_y;
   logic signed [32-1:0] camera_forward_z;
+
   renderer #(
     .WIDTH(320),
     .HEIGHT(180)
@@ -99,9 +103,32 @@ module top_level(
     .rst_in(sys_rst),
     .hcount_in(hcount >> 2),
     .vcount_in(vcount >> 2),
-    .red_out(red),
-    .green_out(green),
-    .blue_out(blue),
+    .color_out(red),
+    .camera_ori_x_raw(camera_ori_x),
+    .camera_ori_y_raw(camera_ori_y),
+    .camera_ori_z_raw(camera_ori_z),
+    .camera_u_x_raw(camera_right_x),
+    .camera_u_y_raw(camera_right_y),
+    .camera_u_z_raw(camera_right_z),
+    .camera_v_x_raw(camera_up_x),
+    .camera_v_y_raw(camera_up_y),
+    .camera_v_z_raw(camera_up_z),
+    .camera_forward_x_raw((~camera_forward_x + 1) <<< 7),
+    .camera_forward_y_raw((~camera_forward_y + 1) <<< 7),
+    .camera_forward_z_raw((~camera_forward_z + 1) <<< 7) // *128 scaling here is how far the projection plane 
+  );
+  renderer #(
+    .WIDTH(320),
+    .HEIGHT(180)
+  ) mrender2 (
+    .clk_in(clk_pixel_divided_buffed),
+    .rst_in(sys_rst),
+    .hcount_in(hcount >> 2),
+    .vcount_in(vcount >> 2),
+    .color_out(blue),
+    .camera_ori_x_raw(camera_ori_x + (camera_right_x <<< 2)),
+    .camera_ori_y_raw(camera_ori_y + (camera_right_y <<< 2)),
+    .camera_ori_z_raw(camera_ori_z + (camera_right_z <<< 2)),
     .camera_u_x_raw(camera_right_x),
     .camera_u_y_raw(camera_right_y),
     .camera_u_z_raw(camera_right_z),
@@ -125,7 +152,7 @@ module top_level(
   tmds_encoder tmds_green(
       .clk_in(clk_pixel),
       .rst_in(sys_rst),
-      .data_in(green),
+      .data_in(0),
       .control_in(2'b0),
       .ve_in(active_draw),
       .tmds_out(tmds_10b[1]));

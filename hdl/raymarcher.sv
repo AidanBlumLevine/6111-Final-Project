@@ -3,9 +3,7 @@
 
 parameter BITS = 32;
 parameter FIXED = 16;
-parameter BG_RED = 8'hFF;
-parameter BG_GREEN = 8'hFF;
-parameter BG_BLUE = 8'hFF;
+parameter BG = 8'hFF;
 
 function logic signed [BITS-1:0] mult;
   input logic signed [BITS-1:0] a;
@@ -103,7 +101,7 @@ module raymarcher
   // ========================================
   input wire start_in,
   input wire [31:0] timer,
-  output logic [23:0] color_out,
+  output logic [7:0] color_out,
   output logic [$clog2(WIDTH)-1:0] out_x,
   output logic [$clog2(HEIGHT)-1:0] out_y,
   output logic pixel_done
@@ -123,38 +121,34 @@ module raymarcher
   logic sdf_start;
   logic sdf_done;
   logic signed [BITS-1:0] sdf_out;
-  logic [7:0] sdf_red_out;
-  logic [7:0] sdf_green_out;
-  logic [7:0] sdf_blue_out;
-  // sdf sdf_inst (
-  //   .clk_in(clk_in),
-  //   .rst_in(rst_in),
-  //   .sdf_start(sdf_start),
-  //   .x(ray_x),
-  //   .y(ray_y),
-  //   .z(ray_z),
-  //   .timer(timer),
-  //   .sdf_done(sdf_done),
-  //   .sdf_out(sdf_out),
-  //   .sdf_red_out(sdf_red_out),
-  //   .sdf_green_out(sdf_green_out),
-  //   .sdf_blue_out(sdf_blue_out)
-  // );
-
-  menger_sdf menger_sdf_inst (
+  logic [7:0] sdf_color_out;
+  sdf sdf_inst (
     .clk_in(clk_in),
     .rst_in(rst_in),
     .sdf_start(sdf_start),
     .x(ray_x),
     .y(ray_y),
     .z(ray_z),
-    // .timer(timer),
+    .timer(timer),
     .sdf_done(sdf_done),
     .sdf_out(sdf_out),
-    .sdf_red_out(sdf_red_out),
-    .sdf_green_out(sdf_green_out),
-    .sdf_blue_out(sdf_blue_out)
+    .sdf_color_out(sdf_color_out)
   );
+
+  // menger_sdf menger_sdf_inst (
+  //   .clk_in(clk_in),
+  //   .rst_in(rst_in),
+  //   .sdf_start(sdf_start),
+  //   .x(ray_x),
+  //   .y(ray_y),
+  //   .z(ray_z),
+  //   // .timer(timer),
+  //   .sdf_done(sdf_done),
+  //   .sdf_out(sdf_out),
+  //   .sdf_red_out(sdf_red_out),
+  //   .sdf_green_out(sdf_green_out),
+  //   .sdf_blue_out(sdf_blue_out)
+  // );
 
   logic ray_gen_start;
   logic ray_gen_done;
@@ -231,11 +225,9 @@ module raymarcher
       end else if(state == AWAITING_SDF) begin
         sdf_start <= 0;
         if (sdf_done) begin
-          $display("ray_x: %d, ray_y: %d, ray_z: %d", ray_x>>>16, ray_y>>>16, ray_z>>>16);
-          $display("sdf_out: %d", sdf_out >>> 16);
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             normal_base_dist <= sdf_out;
-            color_out <= {sdf_red_out, sdf_green_out, sdf_blue_out};
+            color_out <= sdf_color_out;
             ray_gen_in_x <= UNCALCULATED_NORMAL_VALUE;
             ray_gen_in_y <= UNCALCULATED_NORMAL_VALUE;
             ray_gen_in_z <= UNCALCULATED_NORMAL_VALUE;
@@ -248,8 +240,7 @@ module raymarcher
         end
       end else if (state == MARCHING1) begin
         if(ray_steps > MAX_STEPS) begin
-          color_out <= {8'hFF, 8'h00, 8'hFF};
-          // color_out <= {BG_RED, BG_GREEN, BG_BLUE};
+          color_out <= BG;
           state <= PIXEL_DONE;
         end else begin
           ray_x <= ray_x + mult(dir_x, sdf_out);
@@ -260,7 +251,7 @@ module raymarcher
         end
       end else if (state == MARCHING2) begin
         if(abs(ray_x) + abs(ray_y) + abs(ray_z) > MAX_DIST_MANHATTEN) begin
-          color_out <= {BG_RED, BG_GREEN, BG_BLUE};
+          color_out <= BG;
           state <= PIXEL_DONE;
         end else begin
           // domain repeptition =========================
@@ -290,7 +281,7 @@ module raymarcher
           if(abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 for a more generous color
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
-            color_out <= {8'h00, 8'hFF, 8'hFF};
+            color_out <= 8'h8F;
           end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
             ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
             ray_x <= ray_x - NORMAL_EPS;
@@ -326,9 +317,7 @@ module raymarcher
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        color_out <= {clamp_color((mult(tmp_x, light_fac)) >>> FIXED),
-                      clamp_color((mult(tmp_y, light_fac)) >>> FIXED),
-                      clamp_color((mult(tmp_z, light_fac)) >>> FIXED)};
+        color_out <= clamp_color(light_fac >>> FIXED);
 
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
@@ -355,9 +344,7 @@ module sdf (
   input wire [31:0] timer,
   output logic sdf_done,
   output logic signed [BITS-1:0] sdf_out,
-  output logic [7:0] sdf_red_out,
-  output logic [7:0] sdf_green_out,
-  output logic [7:0] sdf_blue_out
+  output logic [7:0] sdf_color_out
 );
   typedef enum {IDLE=0, PROCESSING=1, DONE=2, SQUARE=3} sdf_state;
   sdf_state state;
@@ -453,19 +440,20 @@ module sdf (
             (sphere_2_dist - to_fixed(10))),
             (sphere_3_dist - to_fixed(16))
           );
-          if(sphere_1_dist < sphere_2_dist && sphere_1_dist < sphere_3_dist - to_fixed(6)) begin
-            sdf_red_out <= 8'hF0;
-            sdf_green_out <= 8'h00;
-            sdf_blue_out <= 8'hF0;
-          end else if (sphere_2_dist < sphere_3_dist - to_fixed(6)) begin
-            sdf_red_out <= 8'h00;
-            sdf_green_out <= 8'hF0;
-            sdf_blue_out <= 8'h00;
-          end else begin
-            sdf_red_out <= 8'h00;
-            sdf_green_out <= 8'h00;
-            sdf_blue_out <= 8'hF0;
-          end
+          // if(sphere_1_dist < sphere_2_dist && sphere_1_dist < sphere_3_dist - to_fixed(6)) begin
+          //   sdf_red_out <= 8'hF0;
+          //   sdf_green_out <= 8'h00;
+          //   sdf_blue_out <= 8'hF0;
+          // end else if (sphere_2_dist < sphere_3_dist - to_fixed(6)) begin
+          //   sdf_red_out <= 8'h00;
+          //   sdf_green_out <= 8'hF0;
+          //   sdf_blue_out <= 8'h00;
+          // end else begin
+          //   sdf_red_out <= 8'h00;
+          //   sdf_green_out <= 8'h00;
+          //   sdf_blue_out <= 8'hF0;
+          // end
+          sdf_color_out <= 8'hF0;
           state <= DONE;
         end
       end else if (state == DONE) begin
