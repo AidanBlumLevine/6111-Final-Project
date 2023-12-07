@@ -46,16 +46,28 @@ module tb_menger;
     rst_in=0;
     #30;
 
-    ray_x = to_fixed(0);
-    ray_y = to_fixed(0);
-    ray_z = to_fixed(23);
+    ray_x = to_fixed(1);
+    ray_y = to_fixed(1);
+    ray_z = to_fixed(1);
     sdf_start = 1;
-
+    #30
+    sdf_start = 0;
     while(!sdf_done)begin
       #30;
     end
+    $display("SDF OUT:",$signed(sdf_out) >>> 10);
+    #30;
+    ray_x = to_fixed(1);
+    ray_y = to_fixed(1);
+    ray_z = to_fixed(1);
+    #30;
+    sdf_start = 1;
+    #30
     sdf_start = 0;
-    $display("SDF OUT:",$signed(sdf_out) >>> 16);
+    while(!sdf_done)begin
+      #30;
+    end
+    $display("SDF OUT:",$signed(sdf_out) >>> 10);
     #30;
     
     // ray_x = to_fixed(100);

@@ -89,12 +89,12 @@ module menger_sdf (
   output logic [7:0] sdf_green_out,
   output logic [7:0] sdf_blue_out
 );
-  typedef enum {IDLE=0, INIT_P=1, TRANS=2, DIV=3, INIT_Q=4, WAIT_Q=5, MULT=6, LEN_Q=7, SDF_BOX=8, DIV_PREP=9, FINAL_DIV=109, DONE=11, WAIT=12, WAIT2=13, WAIT3=14, CALC1=15, CALC2=16, CALC3=17, SQUARE=18, TRANS_PREP=19} sdf_state;
+  typedef enum {IDLE=0, INIT_P=1, TRANS=2, DIV=3, INIT_Q=4, WAIT_Q=5, MULT=6, LEN_Q=7, SDF_BOX=8, DIV_PREP=9, FINAL_DIV=10, DONE=11, WAIT=12, WAIT2=13, WAIT3=14, CALC1=15, CALC2=16, CALC3=17, SQUARE=18, TRANS_PREP=19} sdf_state;
   typedef enum {X=0, Y=1, Z=2} square_state;
   square_state sq_state;
   sdf_state state;
   vec3 p;
-  logic [BITS-1:0] scale;
+  logic [BITS-1:0] scale, reciprocal_scale;
   vec3 half_vec;
   logic [BITS-1:0] p_scale;
   vec3 q;
@@ -107,12 +107,6 @@ module menger_sdf (
   logic [BITS-1:0] qx2;
   logic [BITS-1:0] qy2;
   logic [BITS-1:0] qz2;
-
-  logic div_b_start;
-  logic div_b_done;
-  logic div_b_valid;
-  logic signed [BITS-1:0] div_b_in;
-  logic signed [BITS-1:0] div_b_out;
 
   logic sqrt_start;
   logic sqrt_done;
@@ -138,20 +132,6 @@ module menger_sdf (
     .valid(sqrt_done)
   );
 
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) div_box (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_b_start),
-    .valid(div_b_valid),
-    .a(div_b_in),
-    .b(scale),
-    .done(div_b_done),
-    .val(div_b_out)
-  );
-
   assign sdf_red_out = 8'hF0;
   assign sdf_green_out = 8'h0F;
   assign sdf_blue_out = 8'b0;
@@ -162,16 +142,15 @@ module menger_sdf (
       sqrt_start <= 0;
       sqrt_in <= 0;
       sq_state <= X;
+      
+      scale <= to_fixed(1) >> 2;
+      reciprocal_scale <= to_fixed(1) << 2;
     end else begin
       case(state)
       IDLE: begin
         sdf_out <= 0;
+        p_scale <= to_fixed(27);
         if(sdf_start) begin
-          scale <= to_fixed(1) >> 2;
-          half_vec.x <= 1<<<15;
-          half_vec.y <= 1<<<15;
-          half_vec.z <= 1<<<15;
-          p_scale <= to_fixed(27);
           state <= INIT_P;
         end 
       end
@@ -192,11 +171,8 @@ module menger_sdf (
         if(p_scale <= to_fixed(1.1))begin
           state <= WAIT3;
         end else begin
-          state <= WAIT;
+          state <= DIV;
         end
-      end
-      WAIT: begin
-        state <= DIV;
       end
       DIV: begin
         p_scale <= mult(p_scale, 32'b101010101010101); // divide by 3
@@ -207,7 +183,9 @@ module menger_sdf (
         state <= INIT_Q;
       end
       INIT_Q: begin
-        q <= vec3_sub(p, half_vec);
+        q.x <= p.x - (1<<<15);
+        q.y <= p.y - (1<<<15);
+        q.z <= p.z - (1<<<15);
         state <= WAIT_Q;
       end
       WAIT_Q: begin
@@ -239,7 +217,7 @@ module menger_sdf (
       end
       LEN_Q: begin
         sqrt_start <= 0;
-        if(~sqrt_start && sqrt_done)begin
+        if(~sqrt_start && sqrt_done) begin
           length_q <= sqrt_out;
           state <= CALC1;
         end
@@ -258,22 +236,11 @@ module menger_sdf (
       end
       SDF_BOX: begin
         sdBox <= length_q + min_q_0;
-        state <= DIV_PREP;
-      end
-      DIV_PREP: begin
-        div_b_in <= sdBox;
-        div_b_start <= 1;
-        state <= WAIT2;
-      end
-      WAIT2: begin
-        div_b_start <= 0;
         state <= FINAL_DIV;
       end
       FINAL_DIV: begin
-        if (div_b_done && div_b_valid) begin
-          sdf_out <= div_b_out;
-          state <= DONE;
-        end
+        sdf_out <= mult(sdBox, reciprocal_scale);
+        state <= DONE;
       end 
       DONE: begin
         state <= IDLE;
