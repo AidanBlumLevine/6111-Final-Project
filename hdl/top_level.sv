@@ -18,15 +18,15 @@ module top_level(
 
   logic clk_100mhz_buffed;
   BUFG mbf (.I(clk_100mhz), .O(clk_100mhz_buffed));
-  manta manta_inst (
-    .clk(clk_100mhz_buffed),
+//   manta manta_inst (
+//     .clk(clk_100mhz_buffed),
 
-    .rx(uart_rxd),
-    .tx(uart_txd),
+//     .rx(uart_rxd),
+//     .tx(uart_txd),
     
-    .gx(pitch), 
-    .gy(roll), 
-    .gz(yaw));
+//     .gx(pitch), 
+//     .gy(roll), 
+//     .gz(yaw));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
