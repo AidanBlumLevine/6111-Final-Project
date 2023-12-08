@@ -65,9 +65,9 @@ always_ff @(posedge clk_100mhz) begin
       chunkRoll <= 0;
       chunkYaw <= 0;
     end else begin
-      chunkPitch <= chunkPitch + (gy >>> 5);
-      chunkRoll <= chunkRoll + (gx >>> 5);
-      chunkYaw <= chunkYaw + (gz >>> 5);
+      chunkPitch <= chunkPitch + (gy >>> 8);
+      chunkRoll <= chunkRoll + (gx >>> 8);
+      chunkYaw <= chunkYaw + (gz >>> 8);
     end
   end
 end  
@@ -92,7 +92,7 @@ module view_output_simple (
   output logic signed [31:0] x_right,
   output logic signed [31:0] y_right,
   output logic signed [31:0] z_right,
-  output wire done
+  output logic done
   ); 
 
 logic sine1_done, sine2_done;
@@ -103,8 +103,8 @@ logic signed [31:0] x_forward_temp, y_forward_temp, z_forward_temp;
 logic signed [31:0] x_right_temp, y_right_temp, z_right_temp;
 logic signed [31:0] x_up_temp, y_up_temp, z_up_temp;
 
-typedef enum { UPDATING_VALUES, CALCULATING, DONE } trig_calc_state;
-typedef enum { IDLE, FORWARD, UP, RIGHT, DONE } vector_type_state;
+typedef enum { UPDATING_VALUES, CALCULATING, FINALIZED } trig_calc_state;
+typedef enum { IDLE, FORWARD, UP, RIGHT, FINISHED } vector_type_state;
 typedef enum { X, Y, Z } vector_axis_state;
 vector_type_state vector_type;
 vector_axis_state vector_axis;
@@ -112,7 +112,7 @@ trig_calc_state trig_calc;
 
 // Trigonometry functions 
 sine sine1(
-  .start(1),
+  .start(1'b1),
   .value(sine1_value),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
@@ -121,7 +121,7 @@ sine sine1(
 );
 
 sine sine2(
-  .start(1),
+  .start(1'b1),
   .value(sine2_value),
   .clk_in(clk_100mhz),
   .rst_in(rst_in),
@@ -130,7 +130,7 @@ sine sine2(
 );
 
 always_comb begin
-    done = (state == DONE);
+    done = (vector_type == FINISHED);
 end
 
 always_ff @(posedge clk_100mhz) begin 
@@ -141,39 +141,46 @@ always_ff @(posedge clk_100mhz) begin
   end else begin 
     case (vector_type)
       IDLE: begin
-        (start)? vector_type <= FORWARD : vector_type <= IDLE;
+        vector_type <= (start)? FORWARD :IDLE;
       end   
       FORWARD: begin
         case(vector_axis)
           X: begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
-                sine1_value <= pitch - 90;
+                sine1_value <= 90 - pitch;
                 sine2_value <= yaw;
-                trig_calc <= CALCULATING;
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
+                end 
               end 
               CALCULATING: begin 
-                if (sine1_done && sine2_done) begin 
+                if (sine1_done) begin 
                   x_forward_temp <= mult(sine1_out, sine2_out);
+                  trig_calc <= FINALIZED;
                 end   
               end 
-              DONE: begin 
+              FINALIZED: begin 
                 vector_axis <= Y;
                 trig_calc <= UPDATING_VALUES;
               end
             endcase
           end 
-          Y: begin
+          Y: begin  
             case(trig_calc) 
               UPDATING_VALUES: begin 
                 sine1_value <= pitch; 
+                if (sine1_done) begin
+                  trig_calc <= CALCULATING;
+                end
               end 
-              CALCULATING: begin 
+              CALCULATING: begin
                 if (sine1_done) begin 
-                  y_forward_temp <= mult(-1, sine1_out);
+                  y_forward_temp <= mult(to_fixed(-1), sine1_out);
+                  trig_calc <= FINALIZED;
                 end 
               end 
-              DONE: begin 
+              FINALIZED: begin 
                 vector_axis <= Z;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -182,16 +189,19 @@ always_ff @(posedge clk_100mhz) begin
           Z: begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
-                sine1_value <= pitch - 90;
-                sine2_value <= yaw - 90;
-                trig_calc <= CALCULATING;
-              end 
-              CALCULATING: begin 
-                if (sine1_done && sine2_done) begin 
-                  z_forward_temp <= mult(sine1_out, sine2_out);
+                sine1_value <= 90 - pitch;
+                sine2_value <= 90 - yaw;
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
                 end
               end 
-              DONE: begin 
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  z_forward_temp <= mult(sine1_out, sine2_out);
+                  trig_calc <= FINALIZED;
+                end
+              end 
+              FINALIZED: begin 
                 vector_type <= UP;  
                 vector_axis <= X;
                 trig_calc <= UPDATING_VALUES;
@@ -207,14 +217,17 @@ always_ff @(posedge clk_100mhz) begin
               UPDATING_VALUES: begin 
                 sine1_value <= pitch;
                 sine2_value <= yaw;
-                trig_calc <= CALCULATING;
+                if (sine1_done) begin
+                  trig_calc <= CALCULATING;
+                end
               end 
               CALCULATING: begin 
-                if (sine1_done && sine2_done) begin 
+                if (sine1_done) begin 
                   x_up_temp <= mult(sine1_out, sine2_out);
+                  trig_calc <= FINALIZED;
                 end   
               end 
-              DONE: begin 
+              FINALIZED: begin 
                 vector_axis <= Y;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -223,14 +236,18 @@ always_ff @(posedge clk_100mhz) begin
           Y: begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
-                sine1_value <= pitch - 90; 
+                sine1_value <= 90 - pitch; 
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
+                end
               end 
               CALCULATING: begin 
                 if (sine1_done) begin 
-                  y_up_temp <= mult(-1, sine1_out);
+                  y_up_temp <= sine1_out;
+                  trig_calc <= FINALIZED;
                 end 
               end 
-              DONE: begin 
+              FINALIZED: begin 
                 vector_axis <= Z;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -240,16 +257,19 @@ always_ff @(posedge clk_100mhz) begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
                 sine1_value <= pitch;
-                sine2_value <= yaw - 90;
-                trig_calc <= CALCULATING;
-              end 
-              CALCULATING: begin 
-                if (sine1_done && sine2_done) begin 
-                  z_up_temp <= mult(sine1_out, sine2_out);
+                sine2_value <= 90 - yaw;
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
                 end
               end 
-              DONE: begin 
-                vector_type <= UP;  
+              CALCULATING: begin 
+                if (sine1_done) begin 
+                  z_up_temp <= mult(sine1_out, sine2_out);
+                  trig_calc <= FINALIZED;
+                end
+              end 
+              FINALIZED: begin 
+                vector_type <= RIGHT;  
                 vector_axis <= X;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -262,14 +282,18 @@ always_ff @(posedge clk_100mhz) begin
           X: begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
-                sine1_value <= yaw - 90;
+                sine1_value <= 90 - yaw;
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
+                end 
               end 
               CALCULATING: begin 
                 if (sine1_done) begin 
                   x_right_temp <= sine1_out;
+                  trig_calc <= FINALIZED;
                 end   
               end 
-              DONE: begin 
+              FINALIZED: begin 
                 vector_axis <= Y;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -284,15 +308,19 @@ always_ff @(posedge clk_100mhz) begin
             case(trig_calc) 
               UPDATING_VALUES: begin 
                 sine1_value <= yaw;
-                trig_calc <= CALCULATING;
+                if (sine1_done) begin 
+                  trig_calc <= CALCULATING;
+                end
               end 
               CALCULATING: begin 
                 if (sine1_done) begin 
-                  z_right_temp <= mult(-1, sine1_out);
+                  $display(sine1_out);
+                  z_right_temp <= mult(to_fixed(-1), sine1_out);
+                  trig_calc <= FINALIZED;
                 end
               end 
-              DONE: begin 
-                vector_type <= UP;  
+              FINALIZED: begin 
+                vector_type <= FINISHED;  
                 vector_axis <= X;
                 trig_calc <= UPDATING_VALUES;
               end
@@ -300,7 +328,7 @@ always_ff @(posedge clk_100mhz) begin
           end
         endcase 
       end
-    DONE: begin 
+    FINISHED: begin 
       x_forward <= x_forward_temp;
       y_forward <= y_forward_temp;
       z_forward <= z_forward_temp;
