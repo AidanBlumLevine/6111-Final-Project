@@ -231,11 +231,7 @@ module top_level(
         pitch <= pitch_holder;
         roll <= roll_holder;
         yaw <= yaw_holder;
-    end else begin
-        pitch <= 9'd0;
-        roll <= 9'd0;
-        yaw <= 9'd0;
-    end
+    end 
   end 
 
   view_output_simple vi(

@@ -65,9 +65,9 @@ always_ff @(posedge clk_100mhz) begin
       chunkRoll <= 0;
       chunkYaw <= 0;
     end else begin
-      chunkPitch <= chunkPitch + (gy >>> 8);
-      chunkRoll <= chunkRoll + (gx >>> 8);
-      chunkYaw <= chunkYaw + (gz >>> 8);
+      chunkPitch <= chunkPitch + (gy >>> 7);
+      chunkRoll <= chunkRoll + (gx >>> 7);
+      chunkYaw <= chunkYaw + (gz >>> 7);
     end
   end
 end  
