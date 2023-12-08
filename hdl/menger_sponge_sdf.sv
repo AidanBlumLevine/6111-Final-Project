@@ -55,19 +55,13 @@ endfunction
 function vec3 trans;
     input vec3 p;
     input logic [BITS-1:0] scale;
-    vec3 scale_vec;
     logic signed [BITS-1:0] prev_x;
     logic signed [BITS-1:0] prev_z;
     begin
-        scale_vec.x = scale;
-        scale_vec.y = scale;
-        scale_vec.z = scale;
-
-        p = vec3_sub(abs_vec3(p), scale_vec);
-
-        p.x = mult(p.x,to_fixed(-1));
-        p.y = mult(p.y,to_fixed(-1));
-        p.z = mult(p.z,to_fixed(-1));
+        p.x = ~p.x + 1;
+        p.y = ~p.y + 1;
+        p.z = ~p.z + 1;
+        
         prev_x = p.x;
         p.x = ((p.x - p.y > 0) ? p.y : p.x);
         p.y = ((prev_x - p.y > 0) ? prev_x : p.y);
@@ -75,7 +69,7 @@ function vec3 trans;
         p.z = ((p.z - p.y > 0) ? p.y : p.z);
         p.y = ((prev_z - p.y > 0) ? prev_z : p.y);
 
-        p.y = (abs(p.y-mult(to_fixed(0.5),scale))-mult(to_fixed(0.5),scale));
+        p.y = (abs(p.y-(scale >>> 1))-(scale >>> 1));
 
         return p;    
     end
@@ -95,12 +89,12 @@ module menger_sdf (
   output logic [7:0] sdf_green_out,
   output logic [7:0] sdf_blue_out
 );
-  typedef enum {IDLE=0, INIT_P=1, TRANS=2, DIV=3, INIT_Q=4, WAIT_Q=5, MULT=6, LEN_Q=7, SDF_BOX=8, DIV_PREP=9, FINAL_DIV=109, DONE=11, WAIT=12, WAIT2=13, WAIT3=14, CALC1=15, CALC2=16, CALC3=17, SQUARE=18} sdf_state;
+  typedef enum {IDLE=0, INIT_P=1, TRANS=2, DIV=3, INIT_Q=4, WAIT_Q=5, MULT=6, LEN_Q=7, SDF_BOX=8, DIV_PREP=9, FINAL_DIV=10, DONE=11, WAIT=12, WAIT2=13, WAIT3=14, CALC1=15, CALC2=16, CALC3=17, SQUARE=18, TRANS_PREP=19} sdf_state;
   typedef enum {X=0, Y=1, Z=2} square_state;
   square_state sq_state;
   sdf_state state;
   vec3 p;
-  logic [BITS-1:0] scale;
+  logic [BITS-1:0] scale, reciprocal_scale;
   vec3 half_vec;
   logic [BITS-1:0] p_scale;
   vec3 q;
@@ -110,21 +104,9 @@ module menger_sdf (
   logic [BITS-1:0] qx;
   logic [BITS-1:0] qy;
   logic [BITS-1:0] qz;
-  logic [BITS*2-1:0] qx2;
-  logic [BITS*2-1:0] qy2;
-  logic [BITS*2-1:0] qz2;
-
-  vec3 guh;
-  logic div_p_start;
-  logic div_p_done;
-  logic div_p_valid;
-  logic signed [BITS-1:0] div_p_out;
-
-  logic div_b_start;
-  logic div_b_done;
-  logic div_b_valid;
-  logic signed [BITS-1:0] div_b_in;
-  logic signed [BITS-1:0] div_b_out;
+  logic [BITS-1:0] qx2;
+  logic [BITS-1:0] qy2;
+  logic [BITS-1:0] qz2;
 
   logic sqrt_start;
   logic sqrt_done;
@@ -149,96 +131,60 @@ module menger_sdf (
     .root(sqrt_out),
     .valid(sqrt_done)
   );
-
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) divp (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_p_start),
-    .valid(div_p_valid),
-    .a(p_scale),
-    .b(to_fixed(3)),
-    .done(div_p_done),
-    .val(div_p_out)
-  );
-
-  div #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) div_box (
-    .clk(clk_in),
-    .rst(rst_in),
-    .start(div_b_start),
-    .valid(div_b_valid),
-    .a(div_b_in),
-    .b(scale),
-    .done(div_b_done),
-    .val(div_b_out)
-  );
-
-  assign sdf_red_out = 8'hF0;
-  assign sdf_green_out = 8'h0F;
-  assign sdf_blue_out = 8'b0;
   
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
       state <= IDLE;
       sqrt_start <= 0;
       sqrt_in <= 0;
-      div_p_start <= 0;
       sq_state <= X;
+      
+      scale <= to_fixed(1) >> 2;
+      reciprocal_scale <= to_fixed(1) << 2;
     end else begin
       case(state)
       IDLE: begin
         sdf_out <= 0;
+        p_scale <= to_fixed(27);
+        sdf_red_out <= 8'h00;
+        sdf_green_out <= 8'h00;
+        sdf_blue_out <= 8'h00;
         if(sdf_start) begin
-          scale <= to_fixed(10);
-          half_vec.x <= 1<<<15;
-          half_vec.y <= 1<<<15;
-          half_vec.z <= 1<<<15;
-          p_scale <= to_fixed(27);
           state <= INIT_P;
-          // guh.x <= to_fixed(10*25);
-          // guh.y <= to_fixed(15*25);
-          // guh.z <= to_fixed(5*25);
         end 
       end
       INIT_P: begin
-        // guh <= trans(guh,to_fixed(27));
         p.x <= mult(x, scale);
         p.y <= mult(y, scale);
         p.z <= mult(z, scale);
+        state <= TRANS_PREP;
+      end
+      TRANS_PREP: begin
+        p.x <= abs(p.x) - p_scale;
+        p.y <= abs(p.y) - p_scale;
+        p.z <= abs(p.z) - p_scale;
         state <= TRANS;
       end
       TRANS: begin
-        // $display("GUH: ",guh.x,guh.y,guh.z);
         p <= trans(p, p_scale);
-        if(p_scale == to_fixed(1))begin
+        if(p_scale <= to_fixed(1.1))begin
           state <= WAIT3;
         end else begin
-          div_p_start <= 1;
-          state <= WAIT;
+          state <= DIV;
         end
-      end
-      WAIT: begin
-        div_p_start <= 0;
-        state <= DIV;
       end
       DIV: begin
-        if(div_p_done && div_p_valid)begin
-          p_scale <= div_p_out;
-          state <= TRANS;
-        end
+        p_scale <= mult(p_scale, 32'b101010101010101); // divide by 3
+        state <= TRANS_PREP;
       end
       WAIT3: begin
-        $display("P: ", p.x, p.y, p.z);
         p <= abs_vec3(p);
         state <= INIT_Q;
       end
       INIT_Q: begin
-        q <= vec3_sub(p, half_vec);
+        q.x <= p.x - (1<<<15);
+        q.y <= p.y - (1<<<15);
+        q.z <= p.z - (1<<<15);
         state <= WAIT_Q;
       end
       WAIT_Q: begin
@@ -258,24 +204,19 @@ module menger_sdf (
             sq_state <= Z;
           end
           Z: begin
-            qz2 <= mult(qz,qz);
+            sqrt_in <= (qx2 + qy2 + mult(qz,qz));
             state <= MULT;
             sq_state <= X;
           end
         endcase
       end
       MULT: begin
-        $display("qqqqqq: ",qx2,qy2,qz2);
-        sqrt_in <= (qx2 + qy2 + qz2);
-        if(sqrt_in)begin
-          $display("SQUIRT: ",sqrt_in);
-          sqrt_start <= 1;
-          state <= LEN_Q;
-        end
+        sqrt_start <= 1;
+        state <= LEN_Q;
       end
       LEN_Q: begin
         sqrt_start <= 0;
-        if(sqrt_done)begin
+        if(~sqrt_start && sqrt_done) begin
           length_q <= sqrt_out;
           state <= CALC1;
         end
@@ -293,25 +234,12 @@ module menger_sdf (
         state <= SDF_BOX;
       end
       SDF_BOX: begin
-        $display("AAAAAA:  ", length_q, min_q_0);
         sdBox <= length_q + min_q_0;
-        $display("SDBOX: ",length_q);
-        state <= DIV_PREP;
-      end
-      DIV_PREP: begin
-        div_b_in <= sdBox;
-        div_b_start <= 1;
-        state <= WAIT2;
-      end
-      WAIT2: begin
         state <= FINAL_DIV;
       end
       FINAL_DIV: begin
-        div_b_start <= 0;
-        if (div_b_done && div_b_valid) begin
-          sdf_out <= div_b_out;
-          state <= DONE;
-        end
+        sdf_out <= mult(sdBox, reciprocal_scale);
+        state <= DONE;
       end 
       DONE: begin
         state <= IDLE;

@@ -18,15 +18,15 @@ module top_level(
 
   logic clk_100mhz_buffed;
   BUFG mbf (.I(clk_100mhz), .O(clk_100mhz_buffed));
-//   manta manta_inst (
-//     .clk(clk_100mhz_buffed),
+  // manta manta_inst (
+  //   .clk(clk_100mhz_buffed),
 
-//     .rx(uart_rxd),
-//     .tx(uart_txd),
+  //   .rx(uart_rxd),
+  //   .tx(uart_txd),
     
-//     .gx(pitch), 
-//     .gy(roll), 
-//     .gz(yaw));
+  //   .gx(camera_forward_x), 
+  //   .gy(camera_forward_y), 
+  //   .gz(camera_forward_z));
  
   assign led = sw; //to verify the switch values
   //shut up those rgb LEDs (active high):
@@ -70,6 +70,18 @@ module top_level(
 
   logic [7:0] red, green, blue; //red green and blue pixel values for output
 
+  logic clk_pixel_divided_buffed, clk_pixel_divided;
+  BUFG mbf_clk_pixel_divided (.I(clk_pixel_divided), .O(clk_pixel_divided_buffed));
+
+  // Clock divider to generate a clock that is half as fast as clk_pixel
+  always_ff @(posedge clk_pixel) begin
+    if (sys_rst) begin
+      clk_pixel_divided <= 1'b0;
+    end else begin
+      clk_pixel_divided <= ~clk_pixel_divided;
+    end
+  end
+
   logic signed [32-1:0] camera_up_x;
   logic signed [32-1:0] camera_up_y;
   logic signed [32-1:0] camera_up_z;
@@ -83,7 +95,7 @@ module top_level(
     .WIDTH(320),
     .HEIGHT(180)
   ) mrender (
-    .clk_in(clk_pixel),
+    .clk_in(clk_pixel_divided_buffed),
     .rst_in(sys_rst),
     .hcount_in(hcount >> 2),
     .vcount_in(vcount >> 2),
