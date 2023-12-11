@@ -14,6 +14,7 @@ module renderer
   output logic [7:0] color_out,
   input wire start_next_frame,
   output logic frame_done,
+  input wire [31:0] timer,
   // ====================================
   input wire signed [BITS-1:0] camera_ori_x_raw,
   input wire signed [BITS-1:0] camera_ori_y_raw,
@@ -33,7 +34,6 @@ module renderer
 
   logic [5:0] counter;
   logic [31:0] starting;
-  logic [31:0] timer;
 
   logic signed [BITS-1:0] camera_ori_x;
   logic signed [BITS-1:0] camera_ori_y;
@@ -67,7 +67,6 @@ module renderer
     if(rst_in) begin
       curr_x <= 0;
       curr_y <= 0;
-      timer <= 0;
       starting <= 0;
       camera_ori_x <= camera_ori_x_raw;
       camera_ori_y <= camera_ori_y_raw;
@@ -83,25 +82,35 @@ module renderer
       camera_forward_z <= camera_forward_z_raw;
       frame_done <= 1;
   end else if(pixel_done_1 && starting == 0) begin
-      curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
-      curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;
       if(curr_x == WIDTH-1 && curr_y == HEIGHT-1) begin
-        timer <= timer + 1;
-        // set camera vectors
-        camera_ori_x <= camera_ori_x_raw;
-        camera_ori_y <= camera_ori_y_raw;
-        camera_ori_z <= camera_ori_z_raw;
-        camera_u_x <= camera_u_x_raw;
-        camera_u_y <= camera_u_y_raw;
-        camera_u_z <= camera_u_z_raw;
-        camera_v_x <= camera_v_x_raw;
-        camera_v_y <= camera_v_y_raw;
-        camera_v_z <= camera_v_z_raw;
-        camera_forward_x <= camera_forward_x_raw;
-        camera_forward_y <= camera_forward_y_raw;
-        camera_forward_z <= camera_forward_z_raw;
+        if(start_next_frame) begin
+          // set camera vectors
+          camera_ori_x <= camera_ori_x_raw;
+          camera_ori_y <= camera_ori_y_raw;
+          camera_ori_z <= camera_ori_z_raw;
+          camera_u_x <= camera_u_x_raw;
+          camera_u_y <= camera_u_y_raw;
+          camera_u_z <= camera_u_z_raw;
+          camera_v_x <= camera_v_x_raw;
+          camera_v_y <= camera_v_y_raw;
+          camera_v_z <= camera_v_z_raw;
+          camera_forward_x <= camera_forward_x_raw;
+          camera_forward_y <= camera_forward_y_raw;
+          camera_forward_z <= camera_forward_z_raw;
+
+          curr_x <= 0;
+          curr_y <= 0;
+          frame_done <= 0;
+          starting <= 1;
+        end else begin
+          frame_done <= 1;
+          starting <= 0;
+        end
+      end else begin
+        starting <= 1;
+        curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
+        curr_y <= curr_x == WIDTH-1 ? (curr_y + 1) : curr_y;
       end
-      starting <= 1;
     // end else if(pixel_done_2 && starting == 0) begin
     //   curr_x <= curr_x == WIDTH-1 ? 0 : curr_x + 1;
     //   curr_y <= curr_x == WIDTH-1 ? (curr_y == HEIGHT-1 ? 0 : curr_y + 1) : curr_y;

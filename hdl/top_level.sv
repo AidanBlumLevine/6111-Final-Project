@@ -96,6 +96,17 @@ module top_level(
   logic signed [32-1:0] camera_forward_z;
 
   logic r1_done, r2_done;
+  logic [31:0] timer;
+
+  always_ff @(posedge clk_pixel_divided_buffed) begin
+    if (sys_rst) begin
+      timer <= 0;
+    end else begin
+      if(r2_done && r1_done) begin
+        timer <= timer + 1;
+      end
+    end
+  end
 
   renderer #(
     .WIDTH(320),
@@ -119,7 +130,8 @@ module top_level(
     .camera_forward_y_raw(0),
     .camera_forward_z_raw((~(1 << 16) + 1) <<< 7),
     .start_next_frame(r2_done && r1_done),
-    .frame_done(r1_done)
+    .frame_done(r1_done),
+    .timer(timer)
   );
   renderer #(
     .WIDTH(320),
@@ -143,7 +155,8 @@ module top_level(
     .camera_forward_y_raw(0),
     .camera_forward_z_raw((~(1 << 16) + 1) <<< 7), // *128 scaling here is how far the projection plane 
     .start_next_frame(r2_done && r1_done),
-    .frame_done(r2_done)
+    .frame_done(r2_done),
+    .timer(timer)
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
