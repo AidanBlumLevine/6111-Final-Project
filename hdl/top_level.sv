@@ -82,7 +82,7 @@ module top_level(
     end
   end
 
-  logic signed [32-1:0] camera_ori_x = 0;
+  logic signed [32-1:0] camera_ori_x = -20 <<< 16;
   logic signed [32-1:0] camera_ori_y = 0;
   logic signed [32-1:0] camera_ori_z = 140 << 16;
   logic signed [32-1:0] camera_up_x;
@@ -103,19 +103,19 @@ module top_level(
     .rst_in(sys_rst),
     .hcount_in(hcount >> 2),
     .vcount_in(vcount >> 2),
-    .color_out(red),
+    .color_out(blue),
     .camera_ori_x_raw(camera_ori_x),
     .camera_ori_y_raw(camera_ori_y),
     .camera_ori_z_raw(camera_ori_z),
-    .camera_u_x_raw(camera_right_x),
-    .camera_u_y_raw(camera_right_y),
-    .camera_u_z_raw(camera_right_z),
-    .camera_v_x_raw(camera_up_x),
-    .camera_v_y_raw(camera_up_y),
-    .camera_v_z_raw(camera_up_z),
-    .camera_forward_x_raw((~camera_forward_x + 1) <<< 7),
-    .camera_forward_y_raw((~camera_forward_y + 1) <<< 7),
-    .camera_forward_z_raw((~camera_forward_z + 1) <<< 7) // *128 scaling here is how far the projection plane 
+    .camera_u_x_raw(1 << 16),
+    .camera_u_y_raw(0),
+    .camera_u_z_raw(0),
+    .camera_v_x_raw(0),
+    .camera_v_y_raw(1 << 16),
+    .camera_v_z_raw(0),
+    .camera_forward_x_raw(0),
+    .camera_forward_y_raw(0),
+    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7)
   );
   renderer #(
     .WIDTH(320),
@@ -125,19 +125,19 @@ module top_level(
     .rst_in(sys_rst),
     .hcount_in(hcount >> 2),
     .vcount_in(vcount >> 2),
-    .color_out(blue),
-    .camera_ori_x_raw(camera_ori_x + (camera_right_x <<< 2)),
-    .camera_ori_y_raw(camera_ori_y + (camera_right_y <<< 2)),
-    .camera_ori_z_raw(camera_ori_z + (camera_right_z <<< 2)),
-    .camera_u_x_raw(camera_right_x),
-    .camera_u_y_raw(camera_right_y),
-    .camera_u_z_raw(camera_right_z),
-    .camera_v_x_raw(camera_up_x),
-    .camera_v_y_raw(camera_up_y),
-    .camera_v_z_raw(camera_up_z),
-    .camera_forward_x_raw((~camera_forward_x + 1) <<< 7),
-    .camera_forward_y_raw((~camera_forward_y + 1) <<< 7),
-    .camera_forward_z_raw((~camera_forward_z + 1) <<< 7) // *128 scaling here is how far the projection plane 
+    .color_out(red),
+    .camera_ori_x_raw(camera_ori_x + (1 << 15)),
+    .camera_ori_y_raw(camera_ori_y),
+    .camera_ori_z_raw(camera_ori_z),
+    .camera_u_x_raw(1 << 16),
+    .camera_u_y_raw(0),
+    .camera_u_z_raw(0),
+    .camera_v_x_raw(0),
+    .camera_v_y_raw(1 << 16),
+    .camera_v_z_raw(0),
+    .camera_forward_x_raw(0),
+    .camera_forward_y_raw(0),
+    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7) // *128 scaling here is how far the projection plane 
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
@@ -152,7 +152,7 @@ module top_level(
   tmds_encoder tmds_green(
       .clk_in(clk_pixel),
       .rst_in(sys_rst),
-      .data_in(0),
+      .data_in(red < blue ? red : blue),
       .control_in(2'b0),
       .ve_in(active_draw),
       .tmds_out(tmds_10b[1]));
@@ -217,22 +217,22 @@ module top_level(
 //       .yaw(yaw)
 //   );
 
-  view_output_simple vi(
-      .clk_100mhz(clk_100mhz_buffed),
-      .rst_in(sys_rst),
-      .pitch(20),
-      .roll(20),
-      .yaw(20),
-      .x_forward(camera_forward_x),
-      .y_forward(camera_forward_y),
-      .z_forward(camera_forward_z),
-      .x_up(camera_up_x),
-      .y_up(camera_up_y),
-      .z_up(camera_up_z),
-      .x_right(camera_right_x),
-      .y_right(camera_right_y),
-      .z_right(camera_right_z)
-  ); 
+  // view_output_simple vi(
+  //     .clk_100mhz(clk_100mhz_buffed),
+  //     .rst_in(sys_rst),
+  //     .pitch(0),
+  //     .roll(0),
+  //     .yaw(0),
+  //     .x_forward(camera_forward_x),
+  //     .y_forward(camera_forward_y),
+  //     .z_forward(camera_forward_z),
+  //     .x_up(camera_up_x),
+  //     .y_up(camera_up_y),
+  //     .z_up(camera_up_z),
+  //     .x_right(camera_right_x),
+  //     .y_right(camera_right_y),
+  //     .z_right(camera_right_z)
+  // ); 
 endmodule // top_level
 
 `default_nettype wire

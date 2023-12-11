@@ -3,7 +3,7 @@
 
 parameter BITS = 32;
 parameter FIXED = 16;
-parameter BG = 8'hFF;
+parameter BG = 8'h00;
 
 function logic signed [BITS-1:0] mult;
   input logic signed [BITS-1:0] a;
@@ -278,10 +278,10 @@ module raymarcher
         end
       end else if (state == CALC_NORMAL) begin
         if(~sdf_start && sdf_done) begin 
-          if(abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 for a more generous color
+          if(abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
-            color_out <= 8'h8F;
+            color_out <= BG;
           end else if (ray_gen_in_x == UNCALCULATED_NORMAL_VALUE) begin
             ray_gen_in_x <= (sdf_out - normal_base_dist) <<< 4;
             ray_x <= ray_x - NORMAL_EPS;
@@ -303,12 +303,15 @@ module raymarcher
       end else if (state == SHADING) begin
         ray_gen_start <= 0;
         if(~ray_gen_start && ray_gen_done) begin
+          $display("ray_gen_out_x=%0d, ray_gen_out_y=%0d, ray_gen_out_z=%0d", ray_gen_out_x, ray_gen_out_y, ray_gen_out_z);
+          $display("light_x=%0d, light_y=%0d, light_z=%0d", light_x, light_y, light_z);
           light_fac <= (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1;
           light_weight <= to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1));
           state <= SHADING2;
         end
       end else if (state == SHADING2) begin
-          light_fac <= mult(light_fac, light_weight);
+        $display("light_fac=%0d, light_weight=%0d", light_fac, light_weight);
+          light_fac <= mult(light_fac > to_fixed(1) ? to_fixed(1) : light_fac, light_weight);
           tmp_x <= (ray_gen_out_x + to_fixed(1)) << 7;
           tmp_y <= (ray_gen_out_y + to_fixed(1)) << 7;
           tmp_z <= (ray_gen_out_z + to_fixed(1)) << 7;
@@ -317,7 +320,7 @@ module raymarcher
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        color_out <= clamp_color(light_fac >>> FIXED);
+        color_out <= clamp_color((mult(to_fixed(1) << 8, (light_fac))) >>> FIXED);
 
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);
@@ -396,16 +399,6 @@ module sdf (
     .valid(sphere_2_sqrt_done)
   );
 
-  sqrt #(
-    .WIDTH(BITS),
-    .FBITS(FIXED)
-  ) sqrt_inst3 (
-    .clk(clk_in),
-    .start(sqrt_start),
-    .rad(sphere_3_dist_squared),
-    .root(sphere_3_dist),
-    .valid(sphere_3_sqrt_done)
-  );
 
   always_ff @(posedge clk_in) begin
     if(rst_in) begin
@@ -416,29 +409,24 @@ module sdf (
         if(sdf_start) begin
           tmp_x_1 <= x + to_fixed(timer[3:0]) - to_fixed(8);
           tmp_y_1 <= y - to_fixed(7);
-          tmp_z_1 <= z - to_fixed(50);
-          tmp_x_2 <= x;
-          tmp_y_2 <= y + to_fixed(7);
-          tmp_z_2 <= z - to_fixed(50);
-          tmp_x_3 <= x - to_fixed(16);
-          tmp_y_3 <= y;
-          tmp_z_3 <= z - to_fixed(60) + to_fixed(timer[3:0]);
+          tmp_z_1 <= z - to_fixed(80);
+          tmp_x_2 <= abs(x + to_fixed(20)) - to_fixed(10);
+          tmp_y_2 <= abs(y) - to_fixed(5);
+          tmp_z_2 <= abs(z - to_fixed(50)) - to_fixed(5);
           state <= SQUARE;
         end
       end else if(state == SQUARE) begin
         sqrt_start <= 1;
         sphere_1_dist_squared <= square_mag(tmp_x_1, tmp_y_1, tmp_z_1);
-        sphere_2_dist_squared <= square_mag(tmp_x_2, tmp_y_2, tmp_z_2);
-        sphere_3_dist_squared <= square_mag(tmp_x_3, tmp_y_3, tmp_z_3);
+        sphere_2_dist_squared <= square_mag(tmp_x_2 > 0 ? tmp_x_2 : 0, tmp_y_2 > 0 ? tmp_y_2 : 0, tmp_z_2 > 0 ? tmp_z_2 : 0);
         state <= PROCESSING;
       end else if(state == PROCESSING) begin
         if(sqrt_start) begin
           sqrt_start <= 0;
-        end else if(sphere_1_sqrt_done && sphere_2_sqrt_done && sphere_3_sqrt_done) begin
-          sdf_out <= signed_minimum(signed_minimum(
+        end else if(sphere_1_sqrt_done && sphere_2_sqrt_done) begin
+          sdf_out <= signed_minimum(
             (sphere_1_dist - to_fixed(10)), 
-            (sphere_2_dist - to_fixed(10))),
-            (sphere_3_dist - to_fixed(16))
+            (sphere_2_dist - to_fixed(1))
           );
           // if(sphere_1_dist < sphere_2_dist && sphere_1_dist < sphere_3_dist - to_fixed(6)) begin
           //   sdf_red_out <= 8'hF0;
