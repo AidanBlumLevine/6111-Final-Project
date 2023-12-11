@@ -17,9 +17,9 @@ module tb_view;
   view_output_simple vi(
       .clk_100mhz(clk),
       .rst_in(rst),
-      .pitch(269),
+      .pitch(20),
       .roll(0),
-      .yaw(0),
+      .yaw(20),
       .x_forward(camera_forward_x),
       .y_forward(camera_forward_y),
       .z_forward(camera_forward_z),
@@ -43,9 +43,9 @@ module tb_view;
     #1000;
 
     // print all three vectors
-    $display("Camera Forward: (%d/16, %d/16, %d/16)", $signed(camera_forward_x)>>>12, $signed(camera_forward_y)>>>12, $signed(camera_forward_z)>>>12);
-    $display("Camera Up: (%d/16, %d/16, %d/16)", $signed(camera_u_x)>>>12, $signed(camera_u_y)>>>12, $signed(camera_u_z)>>>12);
-    $display("Camera Right: (%d/16, %d/16, %d/16)", $signed(camera_v_x)>>>12, $signed(camera_v_y)>>>12, $signed(camera_v_z)>>>12);
+    $display("Camera Forward: (%d, %d, %d)", $signed(camera_forward_x), $signed(camera_forward_y), $signed(camera_forward_z));
+    $display("Camera Up: (%d, %d, %d)", $signed(camera_u_x), $signed(camera_u_y), $signed(camera_u_z));
+    $display("Camera Right: (%d, %d, %d)", $signed(camera_v_x), $signed(camera_v_y), $signed(camera_v_z));
 
     $finish;
   end

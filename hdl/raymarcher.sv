@@ -185,7 +185,7 @@ module raymarcher
   logic signed [BITS-1:0] tmp_y;
   logic signed [BITS-1:0] tmp_z;
   localparam signed [BITS-1:0] light_x = to_fixed(28) >>> 5;
-  localparam signed [BITS-1:0] light_y = to_fixed(11) >>> 5;
+  localparam signed [BITS-1:0] light_y = to_fixed(-11) >>> 5;
   localparam signed [BITS-1:0] light_z = to_fixed(-8) >>> 5;
 
 
@@ -407,12 +407,12 @@ module sdf (
     end else begin
       if (state == IDLE) begin
         if(sdf_start) begin
-          tmp_x_1 <= x + to_fixed(timer[3:0]) - to_fixed(8);
+          tmp_x_1 <= x + to_fixed(timer[5] ? timer[4:0] : 31-timer[4:0]) - to_fixed(8);
           tmp_y_1 <= y - to_fixed(7);
           tmp_z_1 <= z - to_fixed(80);
-          tmp_x_2 <= abs(x + to_fixed(20)) - to_fixed(10);
-          tmp_y_2 <= abs(y) - to_fixed(5);
-          tmp_z_2 <= abs(z - to_fixed(50)) - to_fixed(5);
+          tmp_x_2 <= abs(x) - to_fixed(5);
+          tmp_y_2 <= abs(y + to_fixed(15)) - to_fixed(5);
+          tmp_z_2 <= abs(z - to_fixed(50) - to_fixed(timer[4] ? timer[3:0] : 15-timer[3:0])) - to_fixed(5);
           state <= SQUARE;
         end
       end else if(state == SQUARE) begin

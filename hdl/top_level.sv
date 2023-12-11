@@ -82,7 +82,7 @@ module top_level(
     end
   end
 
-  logic signed [32-1:0] camera_ori_x = -20 <<< 16;
+  logic signed [32-1:0] camera_ori_x = -10 <<< 16;
   logic signed [32-1:0] camera_ori_y = 0;
   logic signed [32-1:0] camera_ori_z = 140 << 16;
   logic signed [32-1:0] camera_up_x;
@@ -94,6 +94,8 @@ module top_level(
   logic signed [32-1:0] camera_forward_x;
   logic signed [32-1:0] camera_forward_y;
   logic signed [32-1:0] camera_forward_z;
+
+  logic r1_done, r2_done;
 
   renderer #(
     .WIDTH(320),
@@ -115,7 +117,9 @@ module top_level(
     .camera_v_z_raw(0),
     .camera_forward_x_raw(0),
     .camera_forward_y_raw(0),
-    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7)
+    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7),
+    .start_next_frame(r2_done && r1_done),
+    .frame_done(r1_done)
   );
   renderer #(
     .WIDTH(320),
@@ -137,7 +141,9 @@ module top_level(
     .camera_v_z_raw(0),
     .camera_forward_x_raw(0),
     .camera_forward_y_raw(0),
-    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7) // *128 scaling here is how far the projection plane 
+    .camera_forward_z_raw((~(1 << 16) + 1) <<< 7), // *128 scaling here is how far the projection plane 
+    .start_next_frame(r2_done && r1_done),
+    .frame_done(r2_done)
   );
 
   logic [9:0] tmds_10b [0:2]; //output of each TMDS encoder!
