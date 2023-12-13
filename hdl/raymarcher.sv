@@ -78,9 +78,9 @@ module raymarcher
 #(
   parameter WIDTH = 1280,
   parameter HEIGHT = 720,
-  parameter MAX_STEPS = 150,
+  parameter MAX_STEPS = 100,
   parameter signed [BITS-1:0] MAX_DIST_MANHATTEN = 1'b1 << (BITS - 7),
-  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 5)
+  parameter signed [BITS-1:0] EPSILON = 1'b1 << (FIXED - 3) // .0001
 )
 (
   input wire clk_in,
@@ -126,35 +126,35 @@ module raymarcher
   logic [7:0] sdf_red_out;
   logic [7:0] sdf_green_out;
   logic [7:0] sdf_blue_out;
-  sdf sdf_inst (
-    .clk_in(clk_in),
-    .rst_in(rst_in),
-    .sdf_start(sdf_start),
-    .x(ray_x),
-    .y(ray_y),
-    .z(ray_z),
-    .timer(timer),
-    .sdf_done(sdf_done),
-    .sdf_out(sdf_out),
-    .sdf_red_out(sdf_red_out),
-    .sdf_green_out(sdf_green_out),
-    .sdf_blue_out(sdf_blue_out)
-  );
-
-  // menger_sdf menger_sdf_inst (
+  // sdf sdf_inst (
   //   .clk_in(clk_in),
   //   .rst_in(rst_in),
   //   .sdf_start(sdf_start),
   //   .x(ray_x),
   //   .y(ray_y),
   //   .z(ray_z),
-  //   // .timer(timer),
+  //   .timer(timer),
   //   .sdf_done(sdf_done),
   //   .sdf_out(sdf_out),
   //   .sdf_red_out(sdf_red_out),
   //   .sdf_green_out(sdf_green_out),
   //   .sdf_blue_out(sdf_blue_out)
   // );
+
+  menger_sdf menger_sdf_inst (
+    .clk_in(clk_in),
+    .rst_in(rst_in),
+    .sdf_start(sdf_start),
+    .x(ray_x),
+    .y(ray_y),
+    .z(ray_z),
+    // .timer(timer),
+    .sdf_done(sdf_done),
+    .sdf_out(sdf_out),
+    .sdf_red_out(sdf_red_out),
+    .sdf_green_out(sdf_green_out),
+    .sdf_blue_out(sdf_blue_out)
+  );
 
   logic ray_gen_start;
   logic ray_gen_done;
@@ -204,8 +204,8 @@ module raymarcher
       end else if(state == PREINIT) begin
         out_x <= curr_x;
         out_y <= curr_y;
-        tmp_x <= to_fixed(curr_x - (WIDTH>>1)) >>> 1;
-        tmp_y <= to_fixed(curr_y - (HEIGHT>>1)) >>> 1;
+        tmp_x <= to_fixed(curr_x - (WIDTH>>1));
+        tmp_y <= to_fixed(curr_y - (HEIGHT>>1));
         state <= INITIALIZING;
       end else if(state == INITIALIZING) begin
         ray_gen_in_x <= mult(tmp_x, camera_u_x) + mult(tmp_y, camera_v_x) + camera_forward_x;
@@ -231,8 +231,6 @@ module raymarcher
       end else if(state == AWAITING_SDF) begin
         sdf_start <= 0;
         if (sdf_done) begin
-          $display("ray_x: %d, ray_y: %d, ray_z: %d", ray_x>>>16, ray_y>>>16, ray_z>>>16);
-          $display("sdf_out: %d", sdf_out >>> 16);
           if(sdf_out[BITS-1] || sdf_out < EPSILON) begin
             normal_base_dist <= sdf_out;
             color_out <= {sdf_red_out, sdf_green_out, sdf_blue_out};
@@ -287,7 +285,7 @@ module raymarcher
         end
       end else if (state == CALC_NORMAL) begin
         if(~sdf_start && sdf_done) begin 
-          if(0 && abs(sdf_out - normal_base_dist) > (NORMAL_EPS << 1)) begin // << 1 to fix rounding issues
+          if(0 && abs(sdf_out - normal_base_dist) > NORMAL_EPS) begin
             // this shouldnt be possible and indicates a rounding error on the initial read of this pixel
             state <= PIXEL_DONE;
             color_out <= {8'h00, 8'hFF, 8'hFF};
@@ -313,22 +311,22 @@ module raymarcher
         ray_gen_start <= 0;
         if(~ray_gen_start && ray_gen_done) begin
           light_fac <= (mult(ray_gen_out_x, light_x) + mult(ray_gen_out_y, light_y) + mult(ray_gen_out_z, light_z) + to_fixed(2)) >> 1;
-          light_weight <= to_fixed(1) - ((ray_dist >> 9) <= to_fixed(1) ? (ray_dist >> 9) : to_fixed(1)); // 2^9 is where it is solid black
+          light_weight <= to_fixed(1) - ((ray_dist >> 8) <= to_fixed(1) ? (ray_dist >> 8) : to_fixed(1));
           state <= SHADING2;
         end
       end else if (state == SHADING2) begin
           light_fac <= mult(light_fac, light_weight);
-          tmp_x <= (ray_gen_out_x + to_fixed(1)) << 6;
-          tmp_y <= (ray_gen_out_y + to_fixed(1)) << 6;
-          tmp_z <= (ray_gen_out_z + to_fixed(1)) << 6;
+          tmp_x <= (ray_gen_out_x + to_fixed(1)) << 7;
+          tmp_y <= (ray_gen_out_y + to_fixed(1)) << 7;
+          tmp_z <= (ray_gen_out_z + to_fixed(1)) << 7;
           state <= SHADING3;
       end else if (state == SHADING3) begin
         // red_out <= mult(to_fixed(red_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // green_out <= mult(to_fixed(green_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
         // blue_out <= mult(to_fixed(blue_out), (to_fixed(4) + (light_fac <<< 2)) >>> 4) >>> FIXED;
-        color_out <= {clamp_color((((mult(tmp_x, light_fac))) >>> FIXED) + 50),
-                      clamp_color((((mult(tmp_y, light_fac))) >>> FIXED) + 20),
-                      clamp_color((((mult(tmp_z, light_fac))) >>> FIXED) + 20)};
+        color_out <= {clamp_color((mult(tmp_x, light_fac)) >>> FIXED),
+                      clamp_color((mult(tmp_y, light_fac)) >>> FIXED),
+                      clamp_color((mult(tmp_z, light_fac)) >>> FIXED)};
 
         // red_out <= clamp_color((mult(to_fixed(red_out), light_fac >> 1)) >>> FIXED);
         // green_out <= clamp_color((mult(to_fixed(green_out), light_fac >> 1)) >>> FIXED);

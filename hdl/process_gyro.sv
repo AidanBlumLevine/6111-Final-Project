@@ -30,18 +30,18 @@ always_ff @(posedge clk_100mhz) begin
     counter <= 0;
   end else begin  
     counter <= counter + 1;
-    if (counter == 10000000 - 1) begin 
-      // divide current pitch, roll, yaw by 100000000  (100mHz)
-      // to do this, multiply by 43 (approx 1/100000000) (100mHz)
+    if (counter == 16384 - 1) begin 
+      // divide current pitch, roll, yaw by 16384 
+      // to do this, shift right by 14
       // and shift right by 32 + 0 - 8 because curPitch has 0 fractional bits and "43" has 32, and we want 8 in our answer
-      curPitch <= ((chunkPitch*43)>>>24) + curPitch;
-      curRoll <= ((chunkRoll*43)>>>24) + curPitch;
-      curYaw <= ((chunkYaw*43)>>>24) + curPitch;
+      curPitch <= ((chunkPitch>>>14)>>>24) + curPitch;
+      curRoll <= ((chunkRoll>>>14)>>>24) + curPitch;
+      curYaw <= ((chunkYaw>>>14)>>>24) + curPitch;
       $display("ChunkYaw=%d", chunkYaw);
       $display("CurYaw=%d", curYaw);
-      $display("Calculation=%d", ((chunkYaw*43)>>>24));
-      $display("Yaw=%d", ((chunkYaw*43)>>>24) + curPitch);
-    end else if (counter == 10000000) begin
+      $display("Calculation=%d", ((chunkYaw*43)>>>14));
+      $display("Yaw=%d", ((chunkYaw*43)>>>14) + curPitch);
+    end else if (counter == 16384) begin
       if (curPitch < 0) begin
         curPitch <= curPitch + (360 << 8);
       end else if (curPitch > (360 << 8)) begin
@@ -57,7 +57,7 @@ always_ff @(posedge clk_100mhz) begin
       end else if (curYaw >= (360 << 8)) begin
         curYaw <= curYaw - (360 << 8);
       end
-    end else if (counter > 10000000) begin
+    end else if (counter > 16384) begin
       $display("yaw out", curYaw);
       pitch <= curPitch >>> 8;
       roll <= curRoll >>> 8;
@@ -120,7 +120,7 @@ sine sine1(
   .rst_in(rst_in),
   .done(sine1_done),
   .amp_out(sine1_out)
-);
+); 
 
 sine sine2(
   .start(1'b1),
