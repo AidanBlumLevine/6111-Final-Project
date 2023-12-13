@@ -17,9 +17,9 @@ module tb_view;
   view_output_simple vi(
       .clk_100mhz(clk),
       .rst_in(rst),
-      .pitch(269),
-      .roll(0),
-      .yaw(0),
+      .pitch(9'd45),
+      .roll(9'd0),
+      .yaw(9'd30),
       .x_forward(camera_forward_x),
       .y_forward(camera_forward_y),
       .z_forward(camera_forward_z),

@@ -11,9 +11,4 @@ iverilog -g2012 -o sim/sim.out sim/raymarcher_tb.sv hdl/math.sv hdl/raymarcher.s
 To run renderer test bench
 iverilog -g2012 -o sim/sim.out sim/renderer_tb.sv hdl/math.sv hdl/raymarcher.sv && vvp sim/sim.out
 
-
-RAHHHHH
- AIDAN BLUM LEVINE METAVERESE
-
-
-#I HATE AIDAN
+AIDAN BLUM LEVINE METAVERESE

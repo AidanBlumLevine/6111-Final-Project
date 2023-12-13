@@ -165,33 +165,90 @@ module top_level(
       clk_50MHz <= ~clk_50MHz;
   end
   // Gyroscope interface
-  // logic [15:0] gx, gy, gz;
-  // mpu_rg mpu6050(
-  //     .CLOCK_50(clk_50MHz),
-  //     .en(1'b1),
-  //     .reset_n(~sys_rst),
-  //     .I2C_SDAT(pmodb[1]),
-  //     .I2C_SCLK(pmodb[2]),
-  //     .gx(gx),
-  //     .gy(gy),
-  //     .gz(gz)
-  // );
+  logic [15:0] gx, gy, gz;
+  mpu_rg mpu6050(
+      .CLOCK_50(clk_50MHz),
+      .en(1'b1),
+      .reset_n(~sys_rst),
+      .I2C_SDAT(pmodb[1]),
+      .I2C_SCLK(pmodb[2]),
+      .gx(gx),
+      .gy(gy),
+      .gz(gz)
+  );
 
+  logic normalizeGyro;
+  assign normalizeGyro = sw[0];
+
+  logic [8:0] counter;
+  logic [64:0] gx_norm, gy_norm, gz_norm;
+  typedef enum { IDLE, CALCULATING, NORMALIZED } normalization_state;
+  normalization_state state;
+  always @(posedge clk_100mhz_buffed) begin 
+    case(state)  
+        IDLE: begin 
+            if (normalizeGyro) begin 
+                state <= CALCULATING;
+                counter <= 9'd0;
+            end else begin 
+                state <= IDLE;
+                gx_norm <= 0;
+                gy_norm <= 0;
+                gz_norm <= 0;
+            end 
+        end
+        CALCULATING: begin 
+            if (counter < 1048576) begin
+                counter <= counter + 1;
+                gx_norm <= gx_norm + gx;
+                gy_norm <= gy_norm + gy;
+                gz_norm <= gz_norm + gz;
+            end else begin 
+                state <= NORMALIZED;
+                gx_norm <= gx_norm >> 20;
+                gy_norm <= gy_norm >> 20;
+                gz_norm <= gz_norm >> 20;
+            end 
+        end
+        NORMALIZED: begin 
+            if (normalizeGyro) begin 
+                state <= CALCULATING;
+                counter <= 9'd0;
+            end else begin 
+                state <= NORMALIZED;
+            end
+        end
+    endcase     
+  end 
+
+  logic activateGyro;
+  assign activateGyro = btn[1];
+
+  logic [8:0] pitch_holder, roll_holder, yaw_holder;
   logic [8:0] pitch, roll, yaw;
-  // Processing output from gyroscope
+  // // Processing output from gyroscope
   process_gyro_simple gyro_process(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .gx(0),
-      .gy(0),
-      .gz(0),
-      .pitch(pitch),
-      .roll(roll),
-      .yaw(yaw)
+      .gx(gx),
+      .gy(gy),
+      .gz(gz),
+      .pitch(pitch_holder),
+      .roll(roll_holder),
+      .yaw(yaw_holder)
   );
+
+  always_ff @(posedge clk_100mhz_buffed) begin
+    if (activateGyro) begin
+        pitch <= pitch_holder;
+        roll <= roll_holder;
+        yaw <= yaw_holder;
+    end 
+  end 
 
   view_output_simple vi(
       .clk_100mhz(clk_100mhz_buffed),
+      .start(1'b1),
       .rst_in(sys_rst),
       .pitch(pitch),//2 <<< 8),
       .roll(roll),//2 <<< 8),
@@ -204,8 +261,7 @@ module top_level(
       .z_up(camera_up_z),
       .x_right(camera_right_x),
       .y_right(camera_right_y),
-      .z_right(camera_right_z),
-      .start(1'b1)
+      .z_right(camera_right_z)
   ); 
 endmodule // top_level
 
