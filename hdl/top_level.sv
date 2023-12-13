@@ -182,9 +182,9 @@ module top_level(
   process_gyro_simple gyro_process(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .gx(3 << 8),
-      .gy(3 << 8),
-      .gz(3 << 8),
+      .gx(0),
+      .gy(0),
+      .gz(0),
       .pitch(pitch),
       .roll(roll),
       .yaw(yaw)
@@ -193,8 +193,8 @@ module top_level(
   view_output_simple vi(
       .clk_100mhz(clk_100mhz_buffed),
       .rst_in(sys_rst),
-      .pitch(pitch),
-      .roll(roll),
+      .pitch(pitch),//2 <<< 8),
+      .roll(roll),//2 <<< 8),
       .yaw(yaw),
       .x_forward(camera_forward_x),
       .y_forward(camera_forward_y),

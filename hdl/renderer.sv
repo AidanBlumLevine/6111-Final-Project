@@ -121,8 +121,8 @@ module renderer
     .out_y(ray_out_y_1),
     // ====================================
     .camera_x(to_fixed(0)),
-    .camera_y(0),
-    .camera_z(to_fixed(0)),
+    .camera_y(to_fixed(0)),//17)),
+    .camera_z(to_fixed(0)),//80)),
     .camera_u_x(camera_u_x),
     .camera_u_y(camera_u_y),
     .camera_u_z(camera_u_z),

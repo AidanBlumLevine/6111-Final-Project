@@ -126,6 +126,7 @@ module raymarcher
   logic [7:0] sdf_red_out;
   logic [7:0] sdf_green_out;
   logic [7:0] sdf_blue_out;
+
   // sdf sdf_inst (
   //   .clk_in(clk_in),
   //   .rst_in(rst_in),
@@ -141,14 +142,28 @@ module raymarcher
   //   .sdf_blue_out(sdf_blue_out)
   // );
 
-  menger_sdf menger_sdf_inst (
+  // menger_sdf menger_sdf_inst (
+  //   .clk_in(clk_in),
+  //   .rst_in(rst_in),
+  //   .sdf_start(sdf_start),
+  //   .x(ray_x),
+  //   .y(ray_y),
+  //   .z(ray_z),
+  //   .sdf_done(sdf_done),
+  //   .sdf_out(sdf_out),
+  //   .sdf_red_out(sdf_red_out),
+  //   .sdf_green_out(sdf_green_out),
+  //   .sdf_blue_out(sdf_blue_out)
+  // );
+
+  shapes_sdf shape_sdf_inst (
     .clk_in(clk_in),
     .rst_in(rst_in),
     .sdf_start(sdf_start),
     .x(ray_x),
     .y(ray_y),
     .z(ray_z),
-    // .timer(timer),
+    .timer(timer),
     .sdf_done(sdf_done),
     .sdf_out(sdf_out),
     .sdf_red_out(sdf_red_out),
